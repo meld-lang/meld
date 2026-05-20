@@ -9,12 +9,13 @@ Meld combines a minimal kernel with algebraic effects to make every side effect 
 ```meld
 // AI-generated code declares what it does
 fnc sync-files(src: string, dst: string) -> () {
-    FileSystem.read(src)
+    val content = FileSystem.read(src)
     FileSystem.write(dst, content)
     Console.println("synced " + src)
 }
 
 // You control what it's allowed to do
+var log = []
 handle Console {
     fnc println(msg: string) -> () {
         log = arr-push(log, msg)  // capture, don't print
@@ -52,9 +53,9 @@ All agent-facing commands output JSON by default. Use `--text` for human-readabl
 ## Language Features
 
 ```meld
-// 5 keywords: fnc, val, var, rtn, imp
+// 5 keywords: fnc, val, var, rtn, imp — everything else is library
 
-// Functions + conditionals
+// Functions + conditionals (when/then/else is a library function, not syntax)
 fnc factorial(n: int) -> int {
     rtn when(n == 0).then({ rtn 1 }).else({ rtn n * factorial(n - 1) })
 }
@@ -64,14 +65,17 @@ fnc area(c: Circle) -> float { rtn 3.14 * c.radius * c.radius }
 fnc area(r: Rect) -> float { rtn r.w * r.h }
 
 // Algebraic effects — side effects are explicit and interceptable
-Console.println("tracked by the effect system")
+fnc greet(name: string) -> () {
+    Console.println("Hello, " + name + "!")
+}
 
 // Effect sandboxing — override any effect for a scope
+var log = []
 handle Console {
     fnc println(msg: string) -> () { log = arr-push(log, msg) }
 }
 
-// Collections, closures, pattern matching, Result/Option
+// Collections, closures, pattern matching, Result/Option — all library code
 val doubled = map([1, 2, 3], fnc(x: int) -> int { rtn x * 2 })
 val day = match(3, [[1, { rtn "Mon" }], [2, { rtn "Tue" }], [3, { rtn "Wed" }]])
 ```
