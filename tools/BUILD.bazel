@@ -1,0 +1,4 @@
+# Shared build tools and utilities
+# Note: Python validation tests are run standalone, not via Bazel
+
+package(default_visibility = ["//visibility:public"])

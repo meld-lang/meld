@@ -1,0 +1,31 @@
+// 26 — Real-World API
+// A practical user registration example.
+
+fnc validate-name(name: string) -> Result {
+    rtn when(name.length > 0).then({ rtn Ok(name) }).else({ rtn Err("name required") })
+}
+
+fnc validate-age(age: int) -> Result {
+    rtn when(age >= 18).then({ rtn Ok(age) }).else({ rtn Err("must be 18+") })
+}
+
+fnc register(name: string, age: int) -> Result {
+    val name-result = validate-name(name)
+    rtn when(name-result.is-ok == false).then({ rtn name-result }).else({
+        val age-result = validate-age(age)
+        rtn when(age-result.is-ok == false).then({ rtn age-result }).else({
+            rtn Ok("registered: " + name + ", age " + age)
+        })
+    })
+}
+
+fnc main() -> () {
+    val r1 = register("Alice", 25)
+    println(unwrap(r1))
+
+    val r2 = register("", 25)
+    println("empty name: " + r2.error)
+
+    val r3 = register("Bob", 15)
+    println("underage: " + r3.error)
+}

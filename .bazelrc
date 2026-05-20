@@ -1,0 +1,106 @@
+# Build configuration for Meld workspace
+
+# Platform-independent settings
+# Note: C++ standard and warning flags are set per-platform below
+
+# Test configuration
+test --test_output=errors
+test --test_summary=detailed
+
+# Build mode configurations
+build:opt --compilation_mode=opt
+build:dbg --compilation_mode=dbg
+build:fastbuild --compilation_mode=fastbuild
+
+# Disk cache for faster incremental builds
+build --disk_cache=~/.cache/bazel
+
+# Show progress during build
+build --show_progress_rate_limit=5
+
+# Use local strategy (sandboxed not available on Windows)
+build --spawn_strategy=local
+build --genrule_strategy=local
+
+# Enable bzlmod (modern dependency management)
+common --enable_bzlmod=true
+
+# Allow empty globs (needed for some BCR packages like rapidcheck)
+build --noincompatible_disallow_empty_glob
+
+# ===== Linux/macOS (GCC/Clang) settings =====
+build:linux --cxxopt=-std=c++23
+build:linux --host_cxxopt=-std=c++23
+build:linux --cxxopt=-Wall
+build:linux --cxxopt=-Wextra
+build:linux --cxxopt=-Wpedantic
+build:linux --cxxopt=-Werror
+build:linux --copt=-O2
+build:linux --cxxopt=-O2
+build:linux --cxxopt=-DBOOST_MPL_LIMIT_LIST_SIZE=50
+build:linux --cxxopt=-DBOOST_MPL_LIMIT_VECTOR_SIZE=50
+build:linux --cxxopt=-DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS
+build:linux --spawn_strategy=sandboxed
+build:linux --genrule_strategy=sandboxed
+
+build:macos --cxxopt=-std=c++23
+build:macos --host_cxxopt=-std=c++23
+build:macos --cxxopt=-Wall
+build:macos --cxxopt=-Wextra
+build:macos --cxxopt=-Wpedantic
+build:macos --cxxopt=-Werror
+build:macos --cxxopt=-Wno-unused-parameter
+build:macos --cxxopt=-Wno-deprecated-declarations
+build:macos --cxxopt=-Wno-unused-function
+build:macos --cxxopt=-Wno-unused-variable
+build:macos --cxxopt=-Wno-unused-but-set-variable
+build:macos --cxxopt=-Wno-sign-compare
+build:macos --cxxopt=-Wno-tautological-compare
+build:macos --cxxopt=-Wno-dtor-name
+build:macos --cxxopt=-Wno-unused-private-field
+build:macos --cxxopt=-Wno-missing-braces
+build:macos --cxxopt=-Wno-missing-field-initializers
+build:macos --cxxopt=-Wno-mismatched-tags
+build:macos --cxxopt=-Wno-potentially-evaluated-expression
+build:macos --cxxopt=-Wno-defaulted-function-deleted
+build:macos --cxxopt=-Wno-reserved-user-defined-literal
+build:macos --copt=-Wno-unused-but-set-variable
+build:macos --copt=-Wno-unused-but-set-parameter
+build:macos --per_file_copt=.*\\.cpp@-Wno-unused-parameter,-Wno-deprecated-declarations,-Wno-unused-function,-Wno-unused-variable,-Wno-unused-but-set-variable,-Wno-sign-compare,-Wno-tautological-compare,-Wno-dtor-name,-Wno-unused-private-field,-Wno-missing-braces,-Wno-missing-field-initializers,-Wno-mismatched-tags,-Wno-potentially-evaluated-expression,-Wno-defaulted-function-deleted,-Wno-reserved-user-defined-literal,-Wno-character-conversion
+build:macos --copt=-O2
+build:macos --cxxopt=-O2
+build:macos --cxxopt=-DBOOST_MPL_LIMIT_LIST_SIZE=50
+build:macos --cxxopt=-DBOOST_MPL_LIMIT_VECTOR_SIZE=50
+build:macos --cxxopt=-DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS
+build:macos --copt=-mmacosx-version-min=13.3
+build:macos --cxxopt=-mmacosx-version-min=13.3
+build:macos --linkopt=-mmacosx-version-min=13.3
+build:macos --spawn_strategy=sandboxed
+build:macos --genrule_strategy=sandboxed
+build:macos --features=-layering_check
+build:macos --features=-parse_headers
+build:macos --per_file_copt=external/rapidcheck.*\\.cpp@-include,exception,-include,algorithm,-Wno-error,-Wno-deprecated-declarations
+build:macos --cxxopt=-include
+build:macos --cxxopt=exception
+build:macos --per_file_copt=external/rttr.*@-Wno-implicit-const-int-float-conversion
+build:macos --per_file_copt=external/googletest.*@-Wno-character-conversion
+build:macos --per_file_copt=external/rttr.*\\.cpp@-Wno-error,-Wno-implicit-const-int-float-conversion
+
+# ===== Windows (MSVC) settings =====
+build:windows --cxxopt=/std:c++latest
+build:windows --host_cxxopt=/std:c++latest
+build:windows --cxxopt=/W3
+build:windows --cxxopt=/EHsc
+build:windows --cxxopt=/Zc:__cplusplus
+build:windows --define=BOOST_ALL_NO_LIB=1
+build:windows --cxxopt=/DBOOST_MPL_LIMIT_LIST_SIZE=50
+build:windows --cxxopt=/DBOOST_MPL_LIMIT_VECTOR_SIZE=50
+build:windows --cxxopt=/DBOOST_MPL_CFG_NO_PREPROCESSED_HEADERS
+build:windows --features=-layering_check
+build:windows --features=-parse_headers
+
+# Auto-detect platform
+build --enable_platform_specific_config
+
+# Import user-specific configuration if it exists
+try-import %workspace%/.bazelrc.user

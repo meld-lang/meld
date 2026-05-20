@@ -1,0 +1,20 @@
+// 39 — Trailing Lambda Syntax
+// { body } after a dot-access is a method call with lambda argument.
+
+fnc main() -> () {
+    // Trailing lambda on boolean
+    val sunny = true
+    sunny.ifTrue { println("go outside!") }
+
+    val rainy = false
+    rainy.ifTrue { println("this won't print") }
+    rainy.ifFalse { println("stay inside") }
+
+    // Trailing lambda with when
+    val x = 10
+    val big = x > 5
+    big.ifTrue {
+        println("x is big")
+        println("x = " + x)
+    }
+}

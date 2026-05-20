@@ -1,0 +1,95 @@
+// std/async/channel.meld - poll-based MPSC channel
+//
+// recv returns a Pollable and only stores a waker when the receiver is polled
+// while the buffer is empty.
+
+imp std.async.core
+imp std.async.queue
+
+struct Channel[T] {
+    var buffer: RingQueue
+    var closed: bool
+    var waiting-receiver: any
+}
+
+fnc default-channel-capacity() -> int {
+    rtn 1024
+}
+
+fnc create-channel-with-capacity[T](capacity: int) -> Channel[T] {
+    rtn Channel {
+        buffer = create-ring-queue(capacity),
+        closed = false,
+        waiting-receiver = nil
+    }
+}
+
+fnc create-channel[T]() -> Channel[T] {
+    rtn create-channel-with-capacity(default-channel-capacity())
+}
+
+// Send a message. Returns false if channel is closed.
+fnc send[T](ch: Channel[T], msg: T) -> bool {
+    rtn when(ch.closed).then({ rtn false }).else({
+        val pushed = ring-push(ch.buffer, msg)
+        when(pushed).then({
+            when(is-some(ch.waiting-receiver)).then({
+                val waker = ch.waiting-receiver
+                ch.waiting-receiver = nil
+                wake-task(waker)
+            })
+        })
+        rtn pushed
+    })
+}
+
+fnc channel-send[T](ch: Channel[T], msg: T) -> bool {
+    rtn send(ch, msg)
+}
+
+// Receive a message. Returns nil only when channel is closed and empty.
+fnc recv[T](ch: Channel[T]) -> Pollable[T] {
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[T] {
+            val popped = ring-pop(ch.buffer)
+            rtn when(popped.found).then({
+                rtn Ready(popped.value)
+            }).else({
+                rtn when(ch.closed).then({
+                    rtn Ready(nil)
+                }).else({
+                    ch.waiting-receiver = ctx.waker
+                    rtn Pending()
+                })
+            })
+        }
+    }
+}
+
+fnc channel-recv[T](ch: Channel[T]) -> Pollable[T] {
+    rtn recv(ch)
+}
+
+fnc try-recv[T](ch: Channel[T]) -> any {
+    val popped = ring-pop(ch.buffer)
+    rtn when(popped.found).then({ rtn popped.value }).else({ rtn nil })
+}
+
+// Close the channel. Pending recv calls will return nil.
+fnc close[T](ch: Channel[T]) -> () {
+    ch.closed = true
+    when(is-some(ch.waiting-receiver)).then({
+        val waker = ch.waiting-receiver
+        ch.waiting-receiver = nil
+        wake-task(waker)
+    })
+}
+
+fnc channel-close[T](ch: Channel[T]) -> () {
+    close(ch)
+}
+
+// Check if channel has pending messages
+fnc is-empty[T](ch: Channel[T]) -> bool {
+    rtn ring-empty(ch.buffer)
+}

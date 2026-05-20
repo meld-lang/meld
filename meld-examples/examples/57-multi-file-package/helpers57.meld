@@ -1,0 +1,11 @@
+// helpers57.meld — Utility functions for the multi-file package example.
+
+fnc greet(name: string) -> string {
+    rtn "Hello, " + name + "!"
+}
+
+fnc validate-email(email: string) -> Result {
+    rtn when(contains(email, "@"))
+        .then({ rtn Ok(email) })
+        .else({ rtn Err("invalid email: missing @") })
+}

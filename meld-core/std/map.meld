@@ -1,0 +1,48 @@
+// std/map.meld — Key-value map (hash map)
+// Implemented as a list of [key, value] pairs.
+// Pure functional: operations return new maps.
+
+fnc map-new() -> list { rtn [] }
+
+fnc map-set(m: list, key: any, value: any) -> list {
+    val without = filter(m, fnc(entry: any) -> bool { rtn entry[0] != key })
+    rtn push(without, [key, value])
+}
+
+fnc map-get(m: list, key: any) -> Result {
+    val found = filter(m, fnc(entry: any) -> bool { rtn entry[0] == key })
+    rtn when(len(found) == 0)
+        .then({ rtn Err("key not found") })
+        .else({ rtn Ok(found[0][1]) })
+}
+
+fnc map-has(m: list, key: any) -> bool {
+    val found = filter(m, fnc(entry: any) -> bool { rtn entry[0] == key })
+    rtn len(found) > 0
+}
+
+fnc map-remove(m: list, key: any) -> list {
+    rtn filter(m, fnc(entry: any) -> bool { rtn entry[0] != key })
+}
+
+fnc map-keys(m: list) -> list {
+    rtn map(m, fnc(entry: any) -> any { rtn entry[0] })
+}
+
+fnc map-values(m: list) -> list {
+    rtn map(m, fnc(entry: any) -> any { rtn entry[1] })
+}
+
+fnc map-size(m: list) -> int { rtn len(m) }
+
+fnc map-merge(a: list, b: list) -> list {
+    rtn reduce(b, a, fnc(acc: any, entry: any) -> any {
+        rtn map-set(acc, entry[0], entry[1])
+    })
+}
+
+fnc map-from-pairs(pairs: list) -> list {
+    rtn reduce(pairs, map-new(), fnc(acc: any, pair: any) -> any {
+        rtn map-set(acc, pair[0], pair[1])
+    })
+}

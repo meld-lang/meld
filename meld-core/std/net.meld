@@ -1,0 +1,27 @@
+// std/net.meld — Network Operations
+// Use @requires(Net) for functions that access the network.
+// High-level HTTP client; low-level sockets are in std/os/io.meld.
+
+imp kernel
+
+effect Net {
+    fnc get(url: string) -> string
+    fnc post(url: string, body: string) -> string
+    fnc put(url: string, body: string) -> string
+    fnc delete(url: string) -> string
+}
+
+handle Net {
+    fnc get(url: string) -> string {
+        rtn kernel.call("http_get", url)
+    }
+    fnc post(url: string, body: string) -> string {
+        rtn kernel.call("http_post", url, body)
+    }
+    fnc put(url: string, body: string) -> string {
+        rtn kernel.call("http_put", url, body)
+    }
+    fnc delete(url: string) -> string {
+        rtn kernel.call("http_delete", url)
+    }
+}

@@ -1,0 +1,13 @@
+# Documentation BUILD file
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "build_guide",
+    srcs = ["BUILD_GUIDE.md"],
+)
+
+filegroup(
+    name = "all_docs",
+    srcs = glob(["*.md"]),
+)

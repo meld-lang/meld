@@ -1,0 +1,250 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Meld",
+  "scopeName": "source.meld",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#annotations" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#functions" },
+    { "include": "#operators" },
+    { "include": "#punctuation" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.documentation.meld",
+          "begin": "/\\*\\*",
+          "end": "\\*/",
+          "patterns": [
+            {
+              "name": "keyword.other.documentation.meld",
+              "match": "@(see|param|return|throws|since|deprecated|example)\\b"
+            }
+          ]
+        },
+        {
+          "name": "comment.block.meld",
+          "begin": "/\\*",
+          "end": "\\*/"
+        },
+        {
+          "name": "comment.line.double-slash.meld",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "annotations": {
+      "patterns": [
+        {
+          "name": "meta.annotation.meld",
+          "match": "@([a-zA-Z_][a-zA-Z0-9_-]*)",
+          "captures": {
+            "0": { "name": "storage.type.annotation.meld" }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.interpolated.meld",
+          "begin": "`",
+          "end": "`",
+          "patterns": [
+            {
+              "name": "meta.interpolation.meld",
+              "begin": "\\$\\{",
+              "end": "\\}",
+              "beginCaptures": { "0": { "name": "punctuation.definition.interpolation.begin.meld" } },
+              "endCaptures": { "0": { "name": "punctuation.definition.interpolation.end.meld" } },
+              "contentName": "meta.embedded.expression.meld",
+              "patterns": [
+                { "include": "source.meld" }
+              ]
+            },
+            {
+              "name": "constant.character.escape.meld",
+              "match": "\\\\[\\\\`nrt0$]"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.meld",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.meld",
+              "match": "\\\\[\\\\\"nrt0]"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.meld",
+          "match": "\\b0[xX][0-9a-fA-F][0-9a-fA-F_]*\\b"
+        },
+        {
+          "name": "constant.numeric.binary.meld",
+          "match": "\\b0[bB][01][01_]*\\b"
+        },
+        {
+          "name": "constant.numeric.octal.meld",
+          "match": "\\b0[oO][0-7][0-7_]*\\b"
+        },
+        {
+          "name": "constant.numeric.float.meld",
+          "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9][0-9_]*)?\\b"
+        },
+        {
+          "name": "constant.numeric.float.scientific.meld",
+          "match": "\\b[0-9][0-9_]*[eE][+-]?[0-9][0-9_]*\\b"
+        },
+        {
+          "name": "constant.numeric.integer.meld",
+          "match": "\\b[0-9][0-9_]*\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.meld",
+          "match": "\\b(rtn|handle|resume)\\b"
+        },
+        {
+          "name": "storage.type.meld",
+          "match": "\\b(val|var|fnc|opr|struct|class|trait|enum|type|effect|imp|newtype|typealias)\\b"
+        },
+        {
+          "name": "constant.language.meld",
+          "match": "\\b(true|false|nil|self)\\b"
+        },
+        {
+          "name": "keyword.operator.safe.meld",
+          "match": "\\?\\.|\\?\\[|\\?\\(|\\?:|\\?!|!!|\\|>"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.meld",
+          "match": "\\b(int|float|bool|string|void|any|never|list|map|set)\\b"
+        },
+        {
+          "name": "entity.name.type.meld",
+          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "comment": "Function declaration: fnc name",
+          "match": "\\b(fnc)\\s+([a-zA-Z_][a-zA-Z0-9_-]*)",
+          "captures": {
+            "1": { "name": "storage.type.meld" },
+            "2": { "name": "entity.name.function.meld" }
+          }
+        },
+        {
+          "comment": "Operator declaration: opr symbol",
+          "match": "\\b(opr)\\s+([+\\-*/%<>=!&|^~?:@#]+)",
+          "captures": {
+            "1": { "name": "storage.type.meld" },
+            "2": { "name": "entity.name.function.operator.meld" }
+          }
+        },
+        {
+          "comment": "Function call: name(",
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_-]*)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.call.meld" }
+          }
+        },
+        {
+          "comment": "Generic type parameter: [T : Trait]",
+          "match": "\\[\\s*([A-Z][a-zA-Z0-9_]*)\\s*(?::\\s*([A-Z][a-zA-Z0-9_&| ]*))?\\s*\\]",
+          "captures": {
+            "1": { "name": "entity.name.type.parameter.meld" },
+            "2": { "name": "entity.name.type.constraint.meld" }
+          }
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.meld",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.comparison.meld",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.logical.meld",
+          "match": "&&|\\|\\||!"
+        },
+        {
+          "name": "keyword.operator.assignment.meld",
+          "match": "=|\\+=|-=|\\*=|/="
+        },
+        {
+          "name": "keyword.operator.arithmetic.meld",
+          "match": "\\+|-|\\*|/|%"
+        },
+        {
+          "name": "keyword.operator.type.meld",
+          "match": "\\?|&|\\|"
+        },
+        {
+          "name": "keyword.operator.spread.meld",
+          "match": "\\.\\.\\."
+        },
+        {
+          "name": "keyword.operator.range.meld",
+          "match": "\\.\\."
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.separator.comma.meld",
+          "match": ","
+        },
+        {
+          "name": "punctuation.terminator.semicolon.meld",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.accessor.dot.meld",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.definition.colon.meld",
+          "match": ":"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.meld",
+          "match": "\\b[a-z_][a-zA-Z0-9_-]*\\b"
+        }
+      ]
+    }
+  }
+}

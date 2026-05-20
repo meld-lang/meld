@@ -1,0 +1,8 @@
+// std/types/trait.meld — Interface contract, no instances
+
+type trait {
+    meta_set(self, "semantics", "interface")
+    meta_set(self, "instantiable", false)
+    meta_set(self, "fields_allowed", false)
+    meta_set(self, "methods_allowed", true)
+}

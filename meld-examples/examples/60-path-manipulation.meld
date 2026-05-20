@@ -1,0 +1,57 @@
+// 60 — Path Manipulation
+// File path helpers: join, split, extension, basename.
+// Demonstrates string-based path operations without OS calls.
+
+fnc path-join(base: string, child: string) -> string {
+    rtn when(ends-with(base, "/"))
+        .then({ rtn base + child })
+        .else({ rtn base + "/" + child })
+}
+
+fnc path-basename(path: string) -> string {
+    val parts = split(path, "/")
+    rtn parts[len(parts) - 1]
+}
+
+fnc path-dirname(path: string) -> string {
+    val parts = split(path, "/")
+    val n = len(parts)
+    rtn when(n <= 1).then({ rtn "." }).else({
+        val dir-parts = filter(parts, fnc(p: any) -> bool { rtn p != parts[n - 1] })
+        rtn reduce(dir-parts, "", fnc(acc: any, p: any) -> any {
+            rtn when(acc == "").then({ rtn "" + p }).else({ rtn acc + "/" + p })
+        })
+    })
+}
+
+fnc path-extension(path: string) -> string {
+    val base = path-basename(path)
+    val parts = split(base, ".")
+    rtn when(len(parts) <= 1).then({ rtn "" }).else({ rtn parts[len(parts) - 1] })
+}
+
+fnc path-has-extension(path: string, ext: string) -> bool {
+    rtn path-extension(path) == ext
+}
+
+fnc main() -> () {
+    // Join paths
+    println(path-join("/home/user", "docs"))
+    println(path-join("/tmp/", "file.txt"))
+
+    // Basename and dirname
+    println("basename: " + path-basename("/home/user/project/main.meld"))
+    println("dirname: " + path-dirname("/home/user/project/main.meld"))
+
+    // Extensions
+    println("ext: " + path-extension("archive.tar.gz"))
+    println("ext: " + path-extension("Makefile"))
+    println("is .meld: " + path-has-extension("main.meld", "meld"))
+    println("is .meld: " + path-has-extension("main.rs", "meld"))
+
+    // Build a path
+    val project = "/home/user/meld"
+    val src = path-join(project, "src")
+    val main = path-join(src, "main.meld")
+    println("full path: " + main)
+}

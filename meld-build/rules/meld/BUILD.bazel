@@ -1,0 +1,19 @@
+"""Package definition for Meld Bazel rules.
+
+This package contains the Starlark rule definitions, providers,
+toolchain support, and repository rules for building Meld projects.
+"""
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(
+    [
+        "defs.bzl",
+        "rules.bzl",
+        "providers.bzl",
+        "toolchains.bzl",
+        "repositories.bzl",
+        "actions.bzl",
+    ],
+    visibility = ["//visibility:public"],
+)

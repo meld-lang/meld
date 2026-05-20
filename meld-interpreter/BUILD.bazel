@@ -1,0 +1,56 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "interpreter",
+    srcs = [
+        "src/ast_interpreter.cpp",
+        "src/file_watcher.cpp",
+    ],
+    hdrs = [
+        "include/meld/interpreter/ast_interpreter.hpp",
+        "include/meld/interpreter/prelude_source.hpp",
+        "include/meld/interpreter/file_watcher.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        "//meld-core:parser",
+        "//meld-core:kernel",
+        "//meld-core:effects",
+        "@boost.spirit",
+    ],
+)
+
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+cc_test(
+    name = "interpreter_tests",
+    srcs = ["tests/interpreter_test.cpp"],
+    data = [
+        "//meld-core:std/cache.meld",
+        "//meld-core:std/async/atomic.meld",
+        "//meld-core:std/async/atomic_queue.meld",
+        "//meld-core:std/async/channel.meld",
+        "//meld-core:std/async/core.meld",
+        "//meld-core:std/async/driver.meld",
+        "//meld-core:std/async/net.meld",
+        "//meld-core:std/async/queue.meld",
+        "//meld-core:std/async/reactor.meld",
+        "//meld-core:std/async/scheduler.meld",
+        "//meld-core:std/async/task.meld",
+        "//meld-core:std/async/timer.meld",
+        "//meld-core:std/kernel.meld",
+        "//meld-core:std/collections/flat_map.meld",
+        "//meld-core:std/collections/flat_index_map.meld",
+        "//meld-core:std/collections/frequency_sketch.meld",
+        "//meld-core:std/collections/index_deque.meld",
+        "//meld-core:std/test/cache/benchmark.meld",
+    ],
+    deps = [
+        ":interpreter",
+        "//meld-core:parser",
+        "//meld-core:kernel",
+        "@googletest//:gtest_main",
+    ],
+)

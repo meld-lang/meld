@@ -1,0 +1,23 @@
+// 41 — Nested Structs and Deep Access
+// Structs can contain other structs.
+
+fnc make-person(n: string, city: string) -> Person {
+    val addr = Address { city = city, zip = "12345" }
+    rtn Person { name = n, address = addr }
+}
+
+fnc main() -> () {
+    val p = make-person("Alice", "Portland")
+    println("name = " + p.name)
+    println("city = " + p.address.city)
+    println("zip = " + p.address.zip)
+
+    // Array of structs
+    val points = [
+        Point { x = 1, y = 2 },
+        Point { x = 3, y = 4 },
+        Point { x = 5, y = 6 }
+    ]
+    println("points[0].x = " + points[0].x)
+    println("points[2].y = " + points[2].y)
+}

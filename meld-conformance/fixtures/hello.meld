@@ -1,0 +1,4 @@
+@uses(EffectIO)
+fnc main() -> () {
+    println("hello conformance")
+}

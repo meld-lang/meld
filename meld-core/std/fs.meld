@@ -1,0 +1,35 @@
+// std/fs.meld — Filesystem Operations
+// Use @requires(Fs) for functions that access the filesystem.
+// Paths are strings; a Path object type can be added later.
+
+imp kernel
+
+effect Fs {
+    fnc read(path: string) -> string
+    fnc write(path: string, content: string) -> ()
+    fnc delete(path: string) -> ()
+    fnc exists(path: string) -> bool
+    fnc list-dir(path: string) -> List[string]
+    fnc mkdir(path: string) -> ()
+}
+
+handle Fs {
+    fnc read(path: string) -> string {
+        rtn kernel.call("fs_read", path)
+    }
+    fnc write(path: string, content: string) -> () {
+        kernel.call("fs_write", path, content)
+    }
+    fnc delete(path: string) -> () {
+        kernel.call("fs_delete", path)
+    }
+    fnc exists(path: string) -> bool {
+        rtn kernel.call("fs_exists", path)
+    }
+    fnc list-dir(path: string) -> List[string] {
+        rtn kernel.call("fs_list_dir", path)
+    }
+    fnc mkdir(path: string) -> () {
+        kernel.call("fs_mkdir", path)
+    }
+}

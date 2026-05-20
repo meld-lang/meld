@@ -1,0 +1,337 @@
+{
+  "name": "meld",
+  "displayName": "Meld",
+  "description": "Meld programming language support — syntax highlighting, IntelliSense, debugging, formatting, and diagnostics",
+  "version": "0.1.0",
+  "publisher": "meld-lang",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/meld-lang/meld"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Debuggers",
+    "Programming Languages",
+    "Formatters",
+    "Snippets",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onLanguage:meld",
+    "onDebugResolve:meld",
+    "workspaceContains:**/*.meld"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "meld",
+        "aliases": [
+          "Meld",
+          "meld"
+        ],
+        "extensions": [
+          ".meld"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icon.png",
+          "dark": "./icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "meld",
+        "scopeName": "source.meld",
+        "path": "./syntaxes/meld.tmLanguage.json"
+      }
+    ],
+    "semanticTokenTypes": [
+      {
+        "id": "effect",
+        "description": "Meld effect annotation (e.g. IO, State, Async)",
+        "superType": "type"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "meld",
+        "scopes": {
+          "keyword": [
+            "keyword.control.meld"
+          ],
+          "function": [
+            "entity.name.function.meld"
+          ],
+          "variable": [
+            "variable.other.meld"
+          ],
+          "type": [
+            "entity.name.type.meld"
+          ],
+          "parameter": [
+            "variable.parameter.meld"
+          ],
+          "property": [
+            "variable.other.property.meld"
+          ],
+          "string": [
+            "string.quoted.double.meld"
+          ],
+          "number": [
+            "constant.numeric.meld"
+          ],
+          "comment": [
+            "comment.line.double-slash.meld"
+          ],
+          "operator": [
+            "keyword.operator.meld"
+          ],
+          "decorator": [
+            "storage.type.annotation.meld"
+          ],
+          "event": [
+            "storage.type.effect.meld"
+          ],
+          "macro": [
+            "entity.name.function.macro.meld"
+          ],
+          "namespace": [
+            "entity.name.namespace.meld"
+          ]
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "meld",
+        "path": "./snippets/meld.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "meld.build",
+        "title": "Meld: Build Project",
+        "category": "Meld"
+      },
+      {
+        "command": "meld.run",
+        "title": "Meld: Run Program",
+        "category": "Meld"
+      },
+      {
+        "command": "meld.test",
+        "title": "Meld: Run Tests",
+        "category": "Meld"
+      },
+      {
+        "command": "meld.fmt",
+        "title": "Meld: Format File",
+        "category": "Meld"
+      },
+      {
+        "command": "meld.restartServer",
+        "title": "Meld: Restart Language Server",
+        "category": "Meld"
+      },
+      {
+        "command": "meld.showDiagnostics",
+        "title": "Meld: Show Diagnostics",
+        "category": "Meld"
+      },
+      {
+        "command": "meld.newFile",
+        "title": "Meld: New File from Template",
+        "category": "Meld"
+      }
+    ],
+    "configuration": {
+      "title": "Meld",
+      "properties": {
+        "meld.languageServer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the Meld language server for IntelliSense, diagnostics, and navigation."
+        },
+        "meld.languageServer.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Meld CLI binary (meld). Leave empty to auto-detect from workspace tools/meld or PATH."
+        },
+        "meld.languageServer.trace": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace level for language server communication."
+        },
+        "meld.formatting.formatOnSave": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "**Deprecated** — use VS Code's native `#editor.formatOnSave#` setting instead. The Meld language server registers a formatting provider automatically.",
+          "deprecationMessage": "Use editor.formatOnSave instead. The Meld language server provides formatting natively."
+        },
+        "meld.build.showOutput": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show build output panel when building."
+        }
+      }
+    },
+    "taskDefinitions": [
+      {
+        "type": "meld",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "command": {
+            "type": "string",
+            "enum": [
+              "build",
+              "run",
+              "test",
+              "fmt"
+            ],
+            "description": "The Meld CLI command to execute."
+          },
+          "file": {
+            "type": "string",
+            "description": "Target file or project path."
+          }
+        }
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "meld",
+        "owner": "meld",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^error\\[(.*)\\]:\\s+(.*)\\s+-->\\s+(.*):(\\d+):(\\d+)$",
+          "code": 1,
+          "message": 2,
+          "file": 3,
+          "line": 4,
+          "column": 5
+        }
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "meld",
+        "label": "Meld",
+        "languages": [
+          "meld"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Path to the Meld source file or compiled binary to debug"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "interpret",
+                  "compiled"
+                ],
+                "default": "interpret",
+                "description": "Debug mode: 'interpret' for AST interpreter DAP, 'compiled' for LLDB"
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Working directory for the debug session"
+              },
+              "pid": {
+                "type": "number",
+                "description": "Process ID to attach to (compiled mode only)"
+              },
+              "initCommands": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "LLDB commands to run before the debug session starts"
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "meld",
+            "request": "launch",
+            "name": "Meld: Interpret",
+            "mode": "interpret",
+            "program": "${file}"
+          },
+          {
+            "type": "meld",
+            "request": "launch",
+            "name": "Meld: Compiled",
+            "mode": "compiled",
+            "program": "${workspaceFolder}/build/${workspaceFolderBasename}"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "Meld: Interpret",
+            "description": "Debug Meld program with the AST interpreter",
+            "body": {
+              "type": "meld",
+              "request": "launch",
+              "name": "Meld: Interpret",
+              "mode": "interpret",
+              "program": "^\"\\${file}\""
+            }
+          },
+          {
+            "label": "Meld: Compiled",
+            "description": "Debug compiled Meld binary under LLDB",
+            "body": {
+              "type": "meld",
+              "request": "launch",
+              "name": "Meld: Compiled",
+              "mode": "compiled",
+              "program": "^\"\\${workspaceFolder}/build/\\${workspaceFolderBasename}\""
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "npm run compile && mocha out/test/**/*.test.js",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^2.22.0",
+    "fast-check": "^4.6.0",
+    "mocha": "^11.7.5",
+    "typescript": "^5.3.0"
+  }
+}

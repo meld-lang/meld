@@ -1,0 +1,54 @@
+// 49 — Defer and Cleanup
+// Deterministic resource cleanup at scope exit.
+// Demonstrates RAII-style patterns using closures.
+
+// Simulate a resource that needs cleanup
+fnc open-resource(name: string) -> string {
+    println("  open: " + name)
+    rtn name
+}
+
+fnc close-resource(name: string) -> () {
+    println("  close: " + name)
+}
+
+// Defer pattern: register cleanup, do work, cleanup runs at end
+fnc with-resource(name: string, work: any) -> string {
+    val r = open-resource(name)
+    val result = work(r)
+    close-resource(r)
+    rtn result
+}
+
+// Nested resources — cleanup in reverse order
+fnc with-two-resources(a: string, b: string, work: any) -> string {
+    val ra = open-resource(a)
+    val rb = open-resource(b)
+    val result = work(ra, rb)
+    close-resource(rb)
+    close-resource(ra)
+    rtn result
+}
+
+fnc main() -> () {
+    println("--- single resource ---")
+    val r1 = with-resource("db-conn", fnc(r: string) -> string {
+        println("  using: " + r)
+        rtn "query result"
+    })
+    println("got: " + r1)
+
+    println("--- nested resources ---")
+    val r2 = with-two-resources("file.txt", "lock", fnc(f: string, l: string) -> string {
+        println("  working with " + f + " (locked by " + l + ")")
+        rtn "done"
+    })
+    println("got: " + r2)
+
+    println("--- cleanup always runs ---")
+    val r3 = with-resource("socket", fnc(r: string) -> string {
+        println("  sending data on " + r)
+        rtn "sent"
+    })
+    println("got: " + r3)
+}

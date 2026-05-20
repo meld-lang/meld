@@ -1,0 +1,61 @@
+// 56 — Compile-Time Metaprogramming
+// Reflection, type introspection, and compile-time computation.
+// Meld's kernel provides meta-get/meta-set for metadata attachment.
+
+// Type reflection using type-of
+fnc describe-type(value: any) -> string {
+    val t = type-of(value)
+    rtn when(t == "int").then({ rtn "integer value: " + value })
+        .when(t == "string").then({ rtn "string value: \"" + value + "\"" })
+        .when(t == "bool").then({ rtn "boolean value: " + value })
+        .when(t == "list").then({ rtn "list with " + len(value) + " items" })
+        .else({ rtn "struct of type: " + t })
+}
+
+// Compile-time assertions (checked at parse/eval time)
+fnc static-assert(condition: bool, msg: string) -> () {
+    when(condition == false).ifTrue({ panic("static assertion failed: " + msg) })
+}
+
+// Metadata attachment for documentation/provenance
+fnc annotate(value: any, key: string, annotation: string) -> any {
+    println("[meta] " + key + " = " + annotation)
+    rtn value
+}
+
+// Type-driven dispatch table
+fnc serialize(value: any) -> string {
+    val t = type-of(value)
+    rtn when(t == "int").then({ rtn "" + value })
+        .when(t == "string").then({ rtn "\"" + value + "\"" })
+        .when(t == "bool").then({ rtn when(value).then({ rtn "true" }).else({ rtn "false" }) })
+        .when(t == "list").then({
+            val parts = map(value, fnc(item: any) -> any { rtn serialize(item) })
+            rtn "[" + parts + "]"
+        })
+        .else({ rtn "<unknown>" })
+}
+
+fnc main() -> () {
+    // Type reflection
+    println(describe-type(42))
+    println(describe-type("hello"))
+    println(describe-type(true))
+    println(describe-type([1, 2, 3]))
+
+    // Static assertions
+    static-assert(1 + 1 == 2, "basic math")
+    static-assert(len("hello") == 5, "string length")
+    println("all static assertions passed")
+
+    // Metadata
+    val config = annotate(42, "source", "config.toml")
+    val validated = annotate(config, "validated", "true")
+    println("value: " + validated)
+
+    // Serialization via type dispatch
+    println("serialize(42) = " + serialize(42))
+    println("serialize(\"hi\") = " + serialize("hi"))
+    println("serialize(true) = " + serialize(true))
+    println("serialize([1,2]) = " + serialize([1, 2]))
+}

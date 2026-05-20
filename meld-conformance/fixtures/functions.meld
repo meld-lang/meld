@@ -1,0 +1,9 @@
+fnc add(a: int, b: int) -> int { rtn a + b }
+fnc square(x: int) -> int { rtn x * x }
+fnc greet(name: string) -> string { rtn "hi " + name }
+
+fnc main() -> () {
+    println(add(3, 4))
+    println(square(5))
+    println(greet("world"))
+}

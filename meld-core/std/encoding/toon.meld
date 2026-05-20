@@ -1,0 +1,115 @@
+// std/encoding/toon.meld — TOON: Token-Optimized Object Notation
+//
+// A serialization format designed for AI/LLM consumption:
+//   - Minimal token count (fewer tokens = cheaper inference, longer context)
+//   - Unambiguous parse
+//   - Human-readable
+//   - Schema-optional (like JSON)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Types — tagged union via struct + kind field
+// ═══════════════════════════════════════════════════════════════════════════
+
+struct ToonValue {
+    val kind: string
+    val str-val: string
+    val int-val: int
+    val float-val: float
+    val bool-val: bool
+    val items: list
+}
+
+struct ToonEntry {
+    val key: string
+    val value: ToonValue
+}
+
+fnc toon-null() -> ToonValue {
+    rtn ToonValue { kind = "null", str-val = "", int-val = 0, float-val = 0.0, bool-val = false, items = [] }
+}
+
+fnc toon-bool(v: bool) -> ToonValue {
+    rtn ToonValue { kind = "bool", str-val = "", int-val = 0, float-val = 0.0, bool-val = v, items = [] }
+}
+
+fnc toon-int(v: int) -> ToonValue {
+    rtn ToonValue { kind = "int", str-val = "", int-val = v, float-val = 0.0, bool-val = false, items = [] }
+}
+
+fnc toon-float(v: float) -> ToonValue {
+    rtn ToonValue { kind = "float", str-val = "", int-val = 0, float-val = v, bool-val = false, items = [] }
+}
+
+fnc toon-str(v: string) -> ToonValue {
+    rtn ToonValue { kind = "str", str-val = v, int-val = 0, float-val = 0.0, bool-val = false, items = [] }
+}
+
+fnc toon-list(items: list) -> ToonValue {
+    rtn ToonValue { kind = "list", str-val = "", int-val = 0, float-val = 0.0, bool-val = false, items = items }
+}
+
+fnc toon-object(entries: list) -> ToonValue {
+    rtn ToonValue { kind = "object", str-val = "", int-val = 0, float-val = 0.0, bool-val = false, items = entries }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Serialize (ToonValue → string)
+// ═══════════════════════════════════════════════════════════════════════════
+
+fnc toon-encode(value: ToonValue) -> string {
+    rtn toon-encode-at(value, 0)
+}
+
+fnc toon-encode-at(value: ToonValue, indent: int) -> string {
+    rtn match(value.kind, [
+        ["null", { rtn "null" }],
+        ["bool", { rtn to-string(value.bool-val) }],
+        ["int", { rtn int-to-str(value.int-val) }],
+        ["float", { rtn float-to-str(value.float-val) }],
+        ["str", { rtn toon-encode-string(value.str-val) }],
+        ["list", { rtn toon-encode-list(value.items, indent) }],
+        ["object", { rtn toon-encode-object(value.items, indent) }]
+    ])
+}
+
+fnc toon-encode-string(s: string) -> string {
+    // Bare word if no spaces or special chars
+    rtn when(str-find(s, " ") >= 0).then({
+        rtn "\"" + s + "\""
+    }).else({ rtn s })
+}
+
+fnc toon-encode-list(items: list, indent: int) -> string {
+    rtn when(len(items) == 0).then({ rtn "[]" }).else({
+        var result = "[\n"
+        val child-indent = indent + 2
+        forEach(items, fnc(item: any) -> () {
+            result = result + toon-spaces(child-indent) + toon-encode-at(item, child-indent) + "\n"
+        })
+        result = result + toon-spaces(indent) + "]"
+        rtn result
+    })
+}
+
+fnc toon-encode-object(entries: list, indent: int) -> string {
+    rtn when(len(entries) == 0).then({ rtn "{}" }).else({
+        var result = "{\n"
+        val child-indent = indent + 2
+        forEach(entries, fnc(e: any) -> () {
+            result = result + toon-spaces(child-indent) + e.key + " " + toon-encode-at(e.value, child-indent) + "\n"
+        })
+        result = result + toon-spaces(indent) + "}"
+        rtn result
+    })
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+fnc toon-spaces(n: int) -> string {
+    fnc build(i: int, result: string) -> string {
+        rtn when(i >= n).then({ rtn result }).else({ rtn build(i + 1, result + " ") })
+    }
+    rtn build(0, "")
+}

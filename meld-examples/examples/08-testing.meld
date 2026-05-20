@@ -1,0 +1,21 @@
+// 08 — Testing
+// assert() validates conditions at runtime.
+
+fnc add(a: int, b: int) -> int { rtn a + b }
+fnc is-positive(n: int) -> bool { rtn n > 0 }
+
+fnc main() -> () {
+    // Basic assertions
+    assert(1 + 1 == 2, "math works")
+    assert(add(3, 4) == 7, "add works")
+    assert(is-positive(5), "5 is positive")
+    assert(len([1, 2, 3]) == 3, "array length")
+
+    println("all assertions passed!")
+
+    // Test with Result
+    val ok = Ok(42)
+    assert(ok.is-ok, "Ok is ok")
+    assert(unwrap(ok) == 42, "unwrap Ok")
+    println("result tests passed!")
+}

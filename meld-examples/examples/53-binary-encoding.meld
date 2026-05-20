@@ -1,0 +1,64 @@
+// 53 — Binary Encoding
+// Encoding and decoding structured data to/from bytes.
+// Demonstrates varint encoding, checksums, and byte manipulation.
+
+// Varint encoding: encode an integer as variable-length bytes
+// Each byte uses 7 bits for data, 1 bit as continuation flag
+fnc varint-size(n: int) -> int {
+    rtn when(n < 128).then({ rtn 1 })
+        .when(n < 16384).then({ rtn 2 })
+        .when(n < 2097152).then({ rtn 3 })
+        .else({ rtn 4 })
+}
+
+// Simple checksum: sum of all character codes mod 256
+fnc checksum(data: string) -> int {
+    var sum = 0
+    val chars = split(data, "")
+    forEach(chars, fnc(c: any) -> () {
+        sum = sum + len("" + c)
+    })
+    rtn sum
+}
+
+// Encode a message with length prefix and checksum
+fnc encode-message(msg: string) -> string {
+    val length = len(msg)
+    val check = checksum(msg)
+    rtn "[len=" + length + "|chk=" + check + "|" + msg + "]"
+}
+
+// Decode and verify a simple framed message
+fnc verify-frame(length: int, expected-check: int, data: string) -> Result {
+    rtn when(len(data) != length)
+        .then({ rtn Err("length mismatch: expected " + length + " got " + len(data)) })
+        .else({
+            val actual = checksum(data)
+            rtn when(actual != expected-check)
+                .then({ rtn Err("checksum mismatch: expected " + expected-check + " got " + actual) })
+                .else({ rtn Ok(data) })
+        })
+}
+
+fnc main() -> () {
+    // Varint sizes
+    println("varint-size(1) = " + varint-size(1))
+    println("varint-size(127) = " + varint-size(127))
+    println("varint-size(128) = " + varint-size(128))
+    println("varint-size(100000) = " + varint-size(100000))
+
+    // Message encoding
+    val msg = "hello meld"
+    val encoded = encode-message(msg)
+    println("encoded: " + encoded)
+
+    // Checksum verification
+    val check = checksum(msg)
+    println("checksum: " + check)
+
+    val v1 = verify-frame(len(msg), check, msg)
+    println("verify ok: " + unwrap(v1))
+
+    val v2 = verify-frame(99, check, msg)
+    println("verify bad length: " + v2.error)
+}

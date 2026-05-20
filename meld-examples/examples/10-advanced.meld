@@ -1,0 +1,30 @@
+// 10 — Advanced Patterns
+// Combining closures, recursion, structs, and higher-order functions.
+
+fnc tree-sum(depth: int) -> int {
+    rtn when(depth == 0).then({ rtn 1 }).else({ rtn depth + tree-sum(depth - 1) })
+}
+
+fnc to-string(p: Point) -> string { rtn "(" + p.x + "," + p.y + ")" }
+fnc triple(x: int) -> int { rtn x * 3 }
+
+fnc main() -> () {
+    // Stateful closure
+    var count = 0
+    val tick = { count = count + 1 }
+    tick()
+    tick()
+    tick()
+    println("ticks = " + count)
+
+    // Recursive computation
+    println("tree-sum(5) = " + tree-sum(5))
+
+    // Struct + method dispatch
+    val p = Point { x = 3, y = 4 }
+    println("point = " + p.to-string())
+
+    // Higher-order with arrays
+    val nums = [1, 2, 3, 4, 5]
+    println("tripled = " + map(nums, triple))
+}

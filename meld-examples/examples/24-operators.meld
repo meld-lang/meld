@@ -1,0 +1,46 @@
+// 24 — Operator Definitions
+// Define custom operators with opr keyword.
+
+struct Vec2 {
+    val x: float
+    val y: float
+}
+
+// Operator overloading
+opr +(a: Vec2, b: Vec2) -> Vec2 {
+    rtn Vec2 { x = a.x + b.x, y = a.y + b.y }
+}
+
+opr -(a: Vec2, b: Vec2) -> Vec2 {
+    rtn Vec2 { x = a.x - b.x, y = a.y - b.y }
+}
+
+opr ==(a: Vec2, b: Vec2) -> bool {
+    rtn a.x == b.x && a.y == b.y
+}
+
+opr !=(a: Vec2, b: Vec2) -> bool {
+    rtn a.x != b.x || a.y != b.y
+}
+
+// Reserved operators (cannot be overloaded):
+// ?.  ?[]  ?()  — safe chaining
+// ?:  — elvis
+// ?!  — result unwrap
+// !!  — force unwrap
+// ?   — safe return
+
+val a = Vec2 { x = 1.0, y = 2.0 }
+val b = Vec2 { x = 3.0, y = 4.0 }
+
+fnc add(a: Vec2, b: Vec2) -> Vec2 {
+    rtn Vec2 { x = a.x + b.x, y = a.y + b.y }
+}
+
+fnc main() -> () {
+    val a = Vec2 { x = 1.0, y = 2.0 }
+    val b = Vec2 { x = 3.0, y = 4.0 }
+    val c = a + b
+    println("c.x = " + c.x)
+    println("c.y = " + c.y)
+}

@@ -1,0 +1,105 @@
+// core.meld — Meld Standard Library Genesis File
+//
+// This is the first Meld code that bootstraps the language. It provides
+// foundational utilities built on top of the kernel primitives.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// KERNEL PRIMITIVES (implemented in C++ interpreter)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Fully functional:
+//   kernel.apply(func, args_list)     — apply function to list of args
+//   kernel.call(name, ...args)        — call native function by name
+//   kernel.def(name, value)           — define binding in current scope
+//   kernel.set(name, value)           — mutate existing binding
+//   kernel.lookup(name)               — look up binding by name
+//   kernel.meta-set(obj, key, value)  — attach metadata to object
+//   kernel.meta-get(obj, key)         — retrieve metadata
+//   kernel.meta-has(obj, key)         — check metadata existence
+//
+// Not yet implemented (will panic with clear error):
+//   kernel.suspend(delimiter, callback)  — delimited continuations
+//   kernel.resume(continuation, value)   — resume continuation
+//   kernel.mark(delimiter, handler)      — push delimiter
+//   kernel.quote(expr)                   — AST-as-value
+//   kernel.eval(expr)                    — evaluate quoted form
+//   kernel.lambda(params, body, scope)   — dynamic closure creation
+//   kernel.load(path)                    — load native shared library
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// NATIVE BUILTINS (direct C++ functions, not kernel.* namespaced)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   println, print          — I/O
+//   len, arr-push           — array primitives
+//   str-find, substr        — string primitives
+//   type-of, to-string      — type reflection
+//   int-to-str, float-to-str — conversion
+//   panic                   — error
+//   when, then, else        — conditional dispatch
+//   forEach, map, filter, reduce, match — collections (iterative)
+//
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ---------------------------------------------------------------------------
+// I/O — Convenient wrappers around kernel.call
+// ---------------------------------------------------------------------------
+
+@requires(Console)
+fnc print(msg: any) -> () {
+    kernel.call("print", msg)
+}
+
+@requires(Console)
+fnc println(msg: any) -> () {
+    kernel.call("println", msg)
+}
+
+// ---------------------------------------------------------------------------
+// Identity and basic combinators
+// ---------------------------------------------------------------------------
+
+fnc identity(x: any) -> any { rtn x }
+fnc constant(x: any, y: any) -> any { rtn x }
+
+// ---------------------------------------------------------------------------
+// Arithmetic helpers
+// ---------------------------------------------------------------------------
+
+fnc inc(n: int) -> int { rtn n + 1 }
+fnc dec(n: int) -> int { rtn n - 1 }
+
+// ---------------------------------------------------------------------------
+// Boolean helpers
+// ---------------------------------------------------------------------------
+
+fnc not(x: bool) -> bool { rtn x == false }
+
+// ---------------------------------------------------------------------------
+// String Interpolation Formatters
+// ---------------------------------------------------------------------------
+// Called by the compiler's interpolation desugaring:
+//   ${expr}            → __interpolate-default__(expr)
+//   ${:debug expr}     → __interpolate-debug__(expr)
+//   ${:pretty expr}    → __interpolate-pretty__(expr)
+
+fnc __interpolate-default__(value: any) -> string {
+    rtn to-string(value)
+}
+
+fnc __interpolate-debug__(value: any) -> string {
+    rtn to-string(value)
+}
+
+fnc __interpolate-pretty__(value: any) -> string {
+    rtn to-string(value)
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+@requires(Console)
+fnc main() -> () {
+    println("Hello, World from Meld!")
+}

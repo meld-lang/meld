@@ -1,0 +1,35 @@
+// std/os/io.meld — I/O Polling Primitives
+// Thin bindings over epoll/kqueue/IOCP via kernel.call.
+
+imp kernel
+
+effect IO {
+    fnc poll(fds: List[int], timeout-ms: int) -> List[int]
+    fnc read(fd: int, max-bytes: int) -> string
+    fnc write(fd: int, data: string) -> int
+    fnc close(fd: int) -> ()
+    fnc listen(port: int) -> int
+    fnc accept(fd: int) -> int
+}
+
+// Default handler: delegates to OS via kernel.call
+handle IO {
+    fnc poll(fds: List[int], timeout-ms: int) -> List[int] {
+        rtn kernel.call("io_poll", fds, timeout-ms)
+    }
+    fnc read(fd: int, max-bytes: int) -> string {
+        rtn kernel.call("io_read", fd, max-bytes)
+    }
+    fnc write(fd: int, data: string) -> int {
+        rtn kernel.call("io_write", fd, data)
+    }
+    fnc close(fd: int) -> () {
+        kernel.call("io_close", fd)
+    }
+    fnc listen(port: int) -> int {
+        rtn kernel.call("io_listen", port)
+    }
+    fnc accept(fd: int) -> int {
+        rtn kernel.call("io_accept", fd)
+    }
+}

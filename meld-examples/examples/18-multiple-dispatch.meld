@@ -1,0 +1,29 @@
+// 18 — Multiple Dispatch
+// Functions dispatch based on the receiver type via method dispatch.
+// Use unique names per type until true multi-dispatch is implemented.
+
+fnc circle-area(c: Circle) -> float {
+    rtn 3.14 * c.radius * c.radius
+}
+
+fnc rect-area(r: Rect) -> float {
+    rtn r.width * r.height
+}
+
+fnc circle-describe(c: Circle) -> string {
+    rtn "circle with radius " + c.radius
+}
+
+fnc rect-describe(r: Rect) -> string {
+    rtn "rect " + r.width + "x" + r.height
+}
+
+fnc main() -> () {
+    val c = Circle { radius = 5.0 }
+    val r = Rect { width = 3.0, height = 4.0 }
+
+    println(c.circle-describe())
+    println("circle area = " + c.circle-area())
+    println(r.rect-describe())
+    println("rect area = " + r.rect-area())
+}

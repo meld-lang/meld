@@ -1,0 +1,23 @@
+// 30 — Arrays and Collections
+// Demonstrates array literals, indexing, and functional operations.
+
+fnc double(x: int) -> int { rtn x * 2 }
+fnc is-even(x: int) -> bool { rtn x % 2 == 0 }
+
+fnc main() -> () {
+    val numbers = [1, 2, 3, 4, 5]
+    println("numbers = " + numbers)
+    println("length = " + len(numbers))
+    println("first = " + numbers[0])
+    println("last = " + numbers[4])
+
+    // Functional operations
+    val doubled = map(numbers, double)
+    println("doubled = " + doubled)
+
+    val evens = filter(numbers, is-even)
+    println("evens = " + evens)
+
+    val extended = push(numbers, 6)
+    println("extended = " + extended)
+}

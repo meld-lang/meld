@@ -1,0 +1,30 @@
+// 27 — Design by Contract
+// Preconditions and postconditions via assert.
+
+fnc sqrt-approx(n: int) -> int {
+    // Precondition
+    assert(n >= 0, "sqrt requires non-negative input")
+    // Simple integer approximation
+    var guess = 1
+    var i = 0
+    val limit = when(n > 10).then({ rtn 5 }).else({ rtn n })
+    rtn limit
+}
+
+fnc withdraw(balance: int, amount: int) -> Result {
+    // Preconditions
+    assert(amount > 0, "amount must be positive")
+    rtn when(amount > balance).then({ rtn Err("insufficient funds") })
+        .else({ rtn Ok(balance - amount) })
+}
+
+fnc main() -> () {
+    val s = sqrt-approx(25)
+    println("sqrt-approx(25) = " + s)
+
+    val r1 = withdraw(100, 30)
+    println("withdraw 30 from 100 = " + unwrap(r1))
+
+    val r2 = withdraw(100, 200)
+    println("withdraw 200: " + r2.error)
+}

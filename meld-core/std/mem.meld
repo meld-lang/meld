@@ -1,0 +1,30 @@
+// std/mem.meld — Memory management types
+// Hold[T] and View[T] provide ownership and borrowing semantics.
+
+// Hold[T] — owning reference. When dropped, the value is freed.
+// The compiler infers Hold[T] when a class instance is assigned to a
+// variable without an explicit wrapper (Creator Rule).
+trait Storable {
+    fnc is-holding() -> bool
+    fnc ref-count() -> int
+}
+
+// View[T] — non-owning reference. Never increments ref count.
+// Used for read-only access without taking ownership.
+struct View[T] {
+    val target: T
+}
+
+fnc view(target: any) -> View[any] {
+    rtn View { target = target }
+}
+
+// Hold[T] — owning reference. Increments ref count on creation,
+// decrements on drop.
+struct Hold[T] {
+    val target: T
+}
+
+fnc hold(target: any) -> Hold[any] {
+    rtn Hold { target = target }
+}

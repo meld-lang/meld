@@ -1,0 +1,41 @@
+// std/test/async/properties.meld - property tests for poll-based async primitives
+
+imp std.test.property
+imp std.async.core
+imp std.async.channel
+imp std.async.scheduler
+
+// Test: channel send/recv preserves message order
+@requires(Random)
+fnc test-channel-ordering() -> PropertyResult {
+    rtn forall(
+        fnc() -> int { rtn gen-int(1, 10) },
+        fnc(n: int) -> bool {
+            val ch = create-channel()
+            channel-send(ch, n)
+            channel-send(ch, n + 1)
+
+            val first = block-on(channel-recv(ch))
+            val second = block-on(channel-recv(ch))
+
+            rtn first == n && second == n + 1
+        },
+        default-config()
+    )
+}
+
+// Test: scheduler runs ready pollables to completion
+@requires(Random)
+fnc test-scheduler-completion() -> PropertyResult {
+    rtn forall(
+        fnc() -> int { rtn gen-int(1, 20) },
+        fnc(n: int) -> bool {
+            val runtime = create-runtime()
+            val task = spawn-pollable(runtime, ready(n))
+            run-until-idle(runtime)
+
+            rtn task.state == "completed" && task.result == n
+        },
+        default-config()
+    )
+}

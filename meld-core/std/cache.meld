@@ -1,0 +1,1182 @@
+// std/cache.meld - Caffeine-inspired high-throughput cache.
+//
+// The cache policy is implemented in Meld:
+//   - Window TinyLFU admission.
+//   - Window LRU plus probation/protected segmented LRU.
+//   - Packed, aging Count-Min frequency sketch.
+//   - Batched read maintenance.
+//   - Adaptive window sizing.
+//
+// The only runtime support used below is general-purpose Meld substrate:
+// mutable arrays, hashing/equality, and bit operations. There is no
+// cache-specific C++ implementation behind this module.
+
+imp std.collections.flat_map
+imp std.collections.flat_index_map
+imp std.collections.index_deque
+imp std.collections.frequency_sketch
+
+struct CacheEntry {
+    val key: any
+    var value: any
+    var weight: int
+    var write-time: int
+    var access-time: int
+    // Queue ids: 0 = window, 1 = probation, 2 = protected.
+    var queue: int
+    val hash: int
+}
+
+struct CacheStats {
+    val size: int
+    val hits: int
+    val misses: int
+    val evictions: int
+    val eviction-weight: int
+    val admissions: int
+    val rejections: int
+    val requests: int
+    val hit-rate: int
+    val load-successes: int
+    val load-failures: int
+    val total-load-time: int
+    val average-load-penalty: int
+    val refreshes: int
+}
+
+struct CacheLookup {
+    val cache: Cache
+    val value: any
+    val hit: bool
+}
+
+struct Cache {
+    var entries: list
+    var index: FlatIndexMap
+    var free: list
+    var window: IndexDeque
+    var probation: IndexDeque
+    var protected: IndexDeque
+    var write-order: any
+    var access-order: any
+    var sketch: FrequencySketch
+    var read-buffer-slots: list
+    var read-buffer-times: list
+    var read-buffer-size: int
+
+    val max-size: int
+    val max-weight: int
+    val arena-capacity: int
+    var window-max: int
+    var protected-max: int
+    val read-buffer-max: int
+    val expire-after-write: int
+    val expire-after-access: int
+    val refresh-after-write: int
+    val expiry-enabled: bool
+    val expire-after-write-enabled: bool
+    val expire-after-access-enabled: bool
+    val refresh-after-write-enabled: bool
+    val weigher-enabled: bool
+    val removal-listener-enabled: bool
+    val writer-enabled: bool
+
+    var loader: any
+    var weigher: any
+    var removal-listener: any
+    var writer: any
+
+    var size: int
+    var weighted-size: int
+    var hits: int
+    var misses: int
+    var evictions: int
+    var eviction-weight: int
+    var admissions: int
+    var rejections: int
+    var load-successes: int
+    var load-failures: int
+    var total-load-time: int
+    var refreshes: int
+    var reads: int
+    var writes: int
+    var tick: int
+
+    var sample-hits: int
+    var sample-misses: int
+    val adapt-sample-size: int
+    var last-hit-rate: int
+    var window-step: int
+    var window-direction: int
+}
+
+struct CacheConfig {
+    val max-size: int
+    val max-weight: int
+    val expire-after-write: int
+    val expire-after-access: int
+    val refresh-after-write: int
+    val loader: any
+    val weigher: any
+    val removal-listener: any
+    val writer: any
+}
+
+struct CacheFuture {
+    var state: string
+    var value: any
+    var error: any
+    var callbacks: list
+    var failure-callbacks: list
+}
+
+struct AsyncCache {
+    val cache: Cache
+    var inflight: FlatMap
+    var loader: any
+}
+
+fnc cache-max(a: int, b: int) -> int {
+    rtn when(a > b).then({ rtn a }).else({ rtn b })
+}
+
+fnc cache-min(a: int, b: int) -> int {
+    rtn when(a < b).then({ rtn a }).else({ rtn b })
+}
+
+fnc cache-clamp(value: int, low: int, high: int) -> int {
+    rtn cache-min(cache-max(value, low), high)
+}
+
+fnc cache-window-default(max-size: int) -> int {
+    rtn when(max-size <= 1).then({ rtn max-size }).else({
+        rtn cache-max(1, max-size / 100)
+    })
+}
+
+fnc cache-protected-default(max-size: int, window-max: int) -> int {
+    val main-size = cache-max(0, max-size - window-max)
+    rtn (main-size * 80) / 100
+}
+
+fnc cache-build-free(free: list, index: int, capacity: int) -> () {
+    var cursor = index
+    loop-while({ rtn cursor < capacity }, {
+        arr-push-mut(free, cursor)
+        cursor = cursor + 1
+    })
+}
+
+fnc create-cache(max-size: int) -> Cache {
+    rtn create-cache-with-expiry(max-size, 0, 0)
+}
+
+fnc create-cache-with-expiry(max-size: int, expire-after-write: int, expire-after-access: int) -> Cache {
+    rtn create-cache-with-config(CacheConfig {
+        max-size = max-size,
+        max-weight = max-size,
+        expire-after-write = expire-after-write,
+        expire-after-access = expire-after-access,
+        refresh-after-write = 0,
+        loader = nil,
+        weigher = nil,
+        removal-listener = nil,
+        writer = nil
+    })
+}
+
+fnc create-loading-cache(max-size: int, loader: any) -> Cache {
+    rtn create-cache-with-config(CacheConfig {
+        max-size = max-size,
+        max-weight = max-size,
+        expire-after-write = 0,
+        expire-after-access = 0,
+        refresh-after-write = 0,
+        loader = loader,
+        weigher = nil,
+        removal-listener = nil,
+        writer = nil
+    })
+}
+
+fnc create-weighted-cache(max-weight: int, weigher: any) -> Cache {
+    rtn create-cache-with-config(CacheConfig {
+        max-size = max-weight,
+        max-weight = max-weight,
+        expire-after-write = 0,
+        expire-after-access = 0,
+        refresh-after-write = 0,
+        loader = nil,
+        weigher = weigher,
+        removal-listener = nil,
+        writer = nil
+    })
+}
+
+fnc cache-config(max-size: int) -> CacheConfig {
+    rtn CacheConfig {
+        max-size = max-size,
+        max-weight = max-size,
+        expire-after-write = 0,
+        expire-after-access = 0,
+        refresh-after-write = 0,
+        loader = nil,
+        weigher = nil,
+        removal-listener = nil,
+        writer = nil
+    }
+}
+
+fnc create-cache-with-config(config: CacheConfig) -> Cache {
+    val capacity = cache-max(0, config.max-size)
+    val maximum-weight = cache-max(0, config.max-weight)
+    val arena-capacity = capacity + 1
+    val window-max = cache-window-default(capacity)
+    val protected-max = cache-protected-default(capacity, window-max)
+    val loader-enabled = type-of(config.loader) == "function"
+    val expire-write-enabled = config.expire-after-write > 0
+    val expire-access-enabled = config.expire-after-access > 0
+    val free = []
+    cache-build-free(free, 0, arena-capacity)
+
+    rtn Cache {
+        entries = arr-new(arena-capacity, nil),
+        index = flat-index-map-create(cache-max(4, arena-capacity * 2)),
+        free = free,
+        window = index-deque-create(arena-capacity),
+        probation = index-deque-create(arena-capacity),
+        protected = index-deque-create(arena-capacity),
+        write-order = when(expire-write-enabled).then({ rtn index-deque-create(arena-capacity) }).else({ rtn nil }),
+        access-order = when(expire-access-enabled).then({ rtn index-deque-create(arena-capacity) }).else({ rtn nil }),
+        sketch = frequency-sketch-create(capacity),
+        read-buffer-slots = iarr-new(64, -1),
+        read-buffer-times = iarr-new(64, 0),
+        read-buffer-size = 0,
+        max-size = capacity,
+        max-weight = maximum-weight,
+        arena-capacity = arena-capacity,
+        window-max = window-max,
+        protected-max = protected-max,
+        read-buffer-max = 64,
+        expire-after-write = config.expire-after-write,
+        expire-after-access = config.expire-after-access,
+        refresh-after-write = config.refresh-after-write,
+        expiry-enabled = expire-write-enabled || expire-access-enabled,
+        expire-after-write-enabled = expire-write-enabled,
+        expire-after-access-enabled = expire-access-enabled,
+        refresh-after-write-enabled = config.refresh-after-write > 0 && loader-enabled,
+        weigher-enabled = type-of(config.weigher) == "function",
+        removal-listener-enabled = type-of(config.removal-listener) == "function",
+        writer-enabled = type-of(config.writer) == "function",
+        loader = config.loader,
+        weigher = config.weigher,
+        removal-listener = config.removal-listener,
+        writer = config.writer,
+        size = 0,
+        weighted-size = 0,
+        hits = 0,
+        misses = 0,
+        evictions = 0,
+        eviction-weight = 0,
+        admissions = 0,
+        rejections = 0,
+        load-successes = 0,
+        load-failures = 0,
+        total-load-time = 0,
+        refreshes = 0,
+        reads = 0,
+        writes = 0,
+        tick = 0,
+        sample-hits = 0,
+        sample-misses = 0,
+        adapt-sample-size = cache-max(10, capacity * 10),
+        last-hit-rate = -1,
+        window-step = 1,
+        window-direction = 1
+    }
+}
+
+fnc cache-future-pending() -> CacheFuture {
+    rtn CacheFuture { state = "pending", value = nil, error = nil, callbacks = [], failure-callbacks = [] }
+}
+
+fnc cache-future-success(value: any) -> CacheFuture {
+    rtn CacheFuture { state = "success", value = value, error = nil, callbacks = [], failure-callbacks = [] }
+}
+
+fnc cache-future-failure(error: any) -> CacheFuture {
+    rtn CacheFuture { state = "failure", value = nil, error = error, callbacks = [], failure-callbacks = [] }
+}
+
+fnc cache-future-ready(future: CacheFuture) -> bool {
+    rtn future.state != "pending"
+}
+
+fnc cache-future-successful(future: CacheFuture) -> bool {
+    rtn future.state == "success"
+}
+
+fnc cache-future-get(future: CacheFuture) -> any {
+    rtn when(future.state == "success").then({
+        rtn future.value
+    }).else({ rtn nil })
+}
+
+fnc cache-future-error(future: CacheFuture) -> any {
+    rtn when(future.state == "failure").then({
+        rtn future.error
+    }).else({ rtn nil })
+}
+
+fnc cache-future-run-callbacks(future: CacheFuture) -> () {
+    val callbacks = future.callbacks
+    future.callbacks = []
+    forEach(callbacks, fnc(callback: any) -> () {
+        when(type-of(callback) == "function").then({
+            kernel.apply(callback, [future.value])
+        })
+    })
+}
+
+fnc cache-future-run-failure-callbacks(future: CacheFuture) -> () {
+    val callbacks = future.failure-callbacks
+    future.failure-callbacks = []
+    forEach(callbacks, fnc(callback: any) -> () {
+        when(type-of(callback) == "function").then({
+            kernel.apply(callback, [future.error])
+        })
+    })
+}
+
+fnc cache-future-on-success(future: CacheFuture, callback: any) -> CacheFuture {
+    when(type-of(callback) == "function").then({
+        when(future.state == "success").then({
+            kernel.apply(callback, [future.value])
+        }).else({
+            when(future.state == "pending").then({
+                arr-push-mut(future.callbacks, callback)
+            })
+        })
+    })
+    rtn future
+}
+
+fnc cache-future-on-failure(future: CacheFuture, callback: any) -> CacheFuture {
+    when(type-of(callback) == "function").then({
+        when(future.state == "failure").then({
+            kernel.apply(callback, [future.error])
+        }).else({
+            when(future.state == "pending").then({
+                arr-push-mut(future.failure-callbacks, callback)
+            })
+        })
+    })
+    rtn future
+}
+
+fnc cache-future-complete(future: CacheFuture, value: any) -> CacheFuture {
+    when(future.state == "pending").then({
+        future.state = "success"
+        future.value = value
+        future.error = nil
+        cache-future-run-callbacks(future)
+        future.failure-callbacks = []
+    })
+    rtn future
+}
+
+fnc cache-future-fail(future: CacheFuture, error: any) -> CacheFuture {
+    when(future.state == "pending").then({
+        future.state = "failure"
+        future.value = nil
+        future.error = error
+        future.callbacks = []
+        cache-future-run-failure-callbacks(future)
+    })
+    rtn future
+}
+
+fnc create-async-cache(max-size: int) -> AsyncCache {
+    rtn create-async-cache-from-cache(create-cache(max-size), nil)
+}
+
+fnc create-async-loading-cache(max-size: int, loader: any) -> AsyncCache {
+    val cache = create-loading-cache(max-size, loader)
+    rtn create-async-cache-from-cache(cache, loader)
+}
+
+fnc create-async-cache-from-cache(cache: Cache, loader: any) -> AsyncCache {
+    rtn AsyncCache {
+        cache = cache,
+        inflight = flat-map-create(cache-max(4, cache.arena-capacity * 2)),
+        loader = loader
+    }
+}
+
+fnc cache-entry-alive(entry: any) -> bool {
+    rtn type-of(entry) != "unit"
+}
+
+fnc cache-slot-valid(cache: Cache, slot: int) -> bool {
+    rtn slot >= 0 && slot < cache.arena-capacity
+}
+
+fnc cache-entry-at(cache: Cache, slot: int) -> any {
+    rtn when(cache-slot-valid(cache, slot)).then({
+        rtn arr-get(cache.entries, slot)
+    }).else({ rtn nil })
+}
+
+fnc cache-entry-expired(cache: Cache, entry: CacheEntry) -> bool {
+    var expired = false
+    when(cache.expire-after-write-enabled).then({
+        expired = (cache.tick - entry.write-time) > cache.expire-after-write
+    })
+    when(expired == false).then({
+        when(cache.expire-after-access-enabled).then({
+            expired = (cache.tick - entry.access-time) > cache.expire-after-access
+        })
+    })
+    rtn expired
+}
+
+fnc cache-entry-refreshable(cache: Cache, entry: CacheEntry) -> bool {
+    rtn cache.refresh-after-write-enabled && (cache.tick - entry.write-time) > cache.refresh-after-write
+}
+
+fnc cache-entry-weight(cache: Cache, key: any, value: any) -> int {
+    rtn when(cache.weigher-enabled).then({
+        rtn cache-max(1, kernel.apply(cache.weigher, [key, value]))
+    }).else({ rtn 1 })
+}
+
+fnc cache-record-load-success(cache: Cache, started: int) -> () {
+    cache.load-successes = cache.load-successes + 1
+    cache.total-load-time = cache.total-load-time + cache-max(1, cache.tick - started)
+}
+
+fnc cache-record-load-failure(cache: Cache) -> () {
+    cache.load-failures = cache.load-failures + 1
+}
+
+fnc cache-notify-removal(cache: Cache, key: any, value: any, reason: string) -> () {
+    when(cache.removal-listener-enabled).then({
+        kernel.apply(cache.removal-listener, [key, value, reason])
+    })
+}
+
+fnc cache-writer-write(cache: Cache, key: any, value: any) -> () {
+    when(cache.writer-enabled).then({
+        kernel.apply(cache.writer, ["write", key, value])
+    })
+}
+
+fnc cache-writer-delete(cache: Cache, key: any, value: any, reason: string) -> () {
+    when(cache.writer-enabled).then({
+        kernel.apply(cache.writer, ["delete", key, value, reason])
+    })
+}
+
+fnc cache-find-slot-hashed(cache: Cache, key: any, hash: int) -> int {
+    rtn flat-index-map-get-hashed(cache.index, key, hash, -1)
+}
+
+fnc cache-find-slot(cache: Cache, key: any) -> int {
+    rtn cache-find-slot-hashed(cache, key, hash-code(key))
+}
+
+fnc cache-has-key(cache: Cache, key: any) -> bool {
+    val slot = cache-find-slot(cache, key)
+    val entry = cache-entry-at(cache, slot)
+    rtn cache-entry-alive(entry)
+}
+
+fnc cache-link-queue(cache: Cache, queue: int, slot: int) -> () {
+    when(queue == 0).then({
+        index-deque-link-last-present(cache.window, slot)
+    }).else({
+        when(queue == 1).then({
+            index-deque-link-last-present(cache.probation, slot)
+        }).else({
+            index-deque-link-last-present(cache.protected, slot)
+        })
+    })
+}
+
+fnc cache-unlink-queue(cache: Cache, queue: int, slot: int) -> () {
+    when(queue == 0).then({
+        index-deque-unlink-present(cache.window, slot)
+    }).else({
+        when(queue == 1).then({
+            index-deque-unlink-present(cache.probation, slot)
+        }).else({
+            index-deque-unlink-present(cache.protected, slot)
+        })
+    })
+}
+
+fnc cache-touch-queue(cache: Cache, queue: int, slot: int) -> () {
+    when(queue == 0).then({
+        index-deque-move-to-back-present(cache.window, slot)
+    }).else({
+        when(queue == 1).then({
+            index-deque-move-to-back-present(cache.probation, slot)
+        }).else({
+            index-deque-move-to-back-present(cache.protected, slot)
+        })
+    })
+}
+
+fnc cache-move-to-queue(cache: Cache, slot: int, queue: int) -> () {
+    val entry = cache-entry-at(cache, slot)
+    when(cache-entry-alive(entry)).then({
+        cache-unlink-queue(cache, entry.queue, slot)
+        cache-link-queue(cache, queue, slot)
+        entry.queue = queue
+    })
+}
+
+fnc cache-record-hash(cache: Cache, hash: int) -> () {
+    frequency-sketch-increment(cache.sketch, hash)
+}
+
+fnc cache-frequency(cache: Cache, hash: int) -> int {
+    rtn frequency-sketch-frequency(cache.sketch, hash)
+}
+
+fnc cache-adapt-window(cache: Cache) -> () {
+    val requests = cache.sample-hits + cache.sample-misses
+    when(requests >= cache.adapt-sample-size && cache.max-size > 1).then({
+        val rate = (cache.sample-hits * 1000) / requests
+        var direction = cache.window-direction
+        var step = cache.window-step
+        when(cache.last-hit-rate >= 0 && rate < cache.last-hit-rate).then({
+            direction = direction * -1
+            step = cache-max(1, step / 2)
+        })
+        val high = cache-max(1, cache.max-size / 2)
+        cache.window-direction = direction
+        cache.window-step = step
+        cache.window-max = cache-clamp(cache.window-max + (direction * step), 1, high)
+        cache.protected-max = cache-protected-default(cache.max-size, cache.window-max)
+        cache.last-hit-rate = rate
+        cache.sample-hits = 0
+        cache.sample-misses = 0
+        cache-rebalance-window(cache)
+        cache-rebalance-protected(cache)
+    })
+}
+
+fnc cache-after-read(cache: Cache, slot: int) -> () {
+    iarr-set-mut(cache.read-buffer-slots, cache.read-buffer-size, slot)
+    iarr-set-mut(cache.read-buffer-times, cache.read-buffer-size, cache.tick)
+    cache.read-buffer-size = cache.read-buffer-size + 1
+    when(cache.read-buffer-size >= cache.read-buffer-max).then({
+        cache-drain-reads(cache)
+    })
+}
+
+fnc cache-drain-reads(cache: Cache) -> () {
+    val buffered-size = cache.read-buffer-size
+    cache.read-buffer-size = 0
+    var cursor = 0
+    loop-while({ rtn cursor < buffered-size }, {
+        val slot = iarr-get(cache.read-buffer-slots, cursor)
+        val read-time = iarr-get(cache.read-buffer-times, cursor)
+        val entry = cache-entry-at(cache, slot)
+        when(cache-entry-alive(entry)).then({
+            var expired = false
+            when(cache.expire-after-write-enabled).then({
+                expired = (cache.tick - entry.write-time) > cache.expire-after-write
+            })
+            when(expired == false).then({
+                cache-touch-at(cache, slot, read-time)
+            })
+        })
+        cursor = cursor + 1
+    })
+}
+
+fnc cache-touch-at(cache: Cache, slot: int, access-time: int) -> () {
+    val entry = cache-entry-at(cache, slot)
+    when(cache-entry-alive(entry)).then({
+        entry.access-time = access-time
+        when(cache.expire-after-access-enabled).then({
+            index-deque-move-to-back-present(cache.access-order, slot)
+        })
+        when(entry.queue == 1).then({
+            cache-move-to-queue(cache, slot, 2)
+            cache-rebalance-protected(cache)
+        }).else({
+            cache-touch-queue(cache, entry.queue, slot)
+        })
+    })
+}
+
+fnc cache-touch(cache: Cache, slot: int) -> () {
+    cache-touch-at(cache, slot, cache.tick)
+}
+
+fnc cache-rebalance-window(cache: Cache) -> () {
+    var blocked = false
+    loop-while({ rtn blocked == false && cache.window.size > cache.window-max }, {
+        val before = cache.window.size
+        cache-admit-window-candidate(cache)
+        when(cache.window.size >= before).then({
+            blocked = true
+        })
+    })
+}
+
+fnc cache-rebalance-protected(cache: Cache) -> () {
+    var blocked = false
+    loop-while({ rtn blocked == false && cache.protected.size > cache.protected-max }, {
+        val demoted = index-deque-front(cache.protected)
+        when(demoted >= 0).then({
+            cache-move-to-queue(cache, demoted, 1)
+        }).else({
+            blocked = true
+        })
+    })
+}
+
+fnc cache-select-victim-slot(cache: Cache) -> int {
+    rtn when(cache.probation.size > 0).then({ rtn index-deque-front(cache.probation) }).else({
+        rtn when(cache.window.size > 0).then({ rtn index-deque-front(cache.window) }).else({
+            rtn index-deque-front(cache.protected)
+        })
+    })
+}
+
+fnc cache-remove-slot(cache: Cache, slot: int, reason: string) -> () {
+    val entry = cache-entry-at(cache, slot)
+    when(cache-entry-alive(entry)).then({
+        cache-unlink-queue(cache, entry.queue, slot)
+        when(cache.expire-after-write-enabled).then({
+            index-deque-unlink-present(cache.write-order, slot)
+        })
+        when(cache.expire-after-access-enabled).then({
+            index-deque-unlink-present(cache.access-order, slot)
+        })
+        flat-index-map-remove-hashed(cache.index, entry.key, entry.hash)
+        arr-set-mut(cache.entries, slot, nil)
+        arr-push-mut(cache.free, slot)
+        cache.size = cache-max(0, cache.size - 1)
+        cache.weighted-size = cache-max(0, cache.weighted-size - entry.weight)
+        when(reason == "size").then({
+            cache.evictions = cache.evictions + 1
+            cache.eviction-weight = cache.eviction-weight + entry.weight
+        })
+        when(cache.removal-listener-enabled).then({
+            kernel.apply(cache.removal-listener, [entry.key, entry.value, reason])
+        })
+        when(cache.writer-enabled).then({
+            kernel.apply(cache.writer, ["delete", entry.key, entry.value, reason])
+        })
+    })
+}
+
+fnc cache-trim-capacity(cache: Cache) -> () {
+    var blocked = false
+    loop-while({ rtn blocked == false && (cache.size > cache.max-size || cache.weighted-size > cache.max-weight) && cache.size > 0 }, {
+        val victim = cache-select-victim-slot(cache)
+        when(victim >= 0).then({
+            cache-remove-slot(cache, victim, "size")
+        }).else({
+            blocked = true
+        })
+    })
+}
+
+fnc cache-admit-window-candidate(cache: Cache) -> () {
+    val candidate = index-deque-front(cache.window)
+    when(candidate >= 0).then({
+        val candidate-entry = cache-entry-at(cache, candidate)
+        when(cache-entry-alive(candidate-entry)).then({
+            when(cache.size <= cache.max-size || cache.probation.size == 0).then({
+                cache-move-to-queue(cache, candidate, 1)
+                cache.admissions = cache.admissions + 1
+                cache-trim-capacity(cache)
+            }).else({
+                val victim = index-deque-front(cache.probation)
+                val victim-entry = cache-entry-at(cache, victim)
+                val candidate-frequency = cache-frequency(cache, candidate-entry.hash)
+                val victim-frequency = when(cache-entry-alive(victim-entry)).then({
+                    rtn cache-frequency(cache, victim-entry.hash)
+                }).else({ rtn -1 })
+                when(candidate-frequency > victim-frequency).then({
+                    cache-remove-slot(cache, victim, "size")
+                    cache-move-to-queue(cache, candidate, 1)
+                    cache.admissions = cache.admissions + 1
+                }).else({
+                    cache-remove-slot(cache, candidate, "size")
+                    cache.rejections = cache.rejections + 1
+                })
+            })
+        }).else({
+            index-deque-unlink(cache.window, candidate)
+        })
+    })
+}
+
+fnc cache-alloc-slot(cache: Cache) -> int {
+    when(len(cache.free) == 0).then({
+        cache-trim-capacity(cache)
+    })
+    rtn when(len(cache.free) > 0).then({
+        rtn arr-pop-mut(cache.free)
+    }).else({ rtn -1 })
+}
+
+fnc cache-upsert-entry(cache: Cache, key: any, value: any, weight: int, hash: int) -> int {
+    val existing-slot = cache-find-slot-hashed(cache, key, hash)
+    val existing = cache-entry-at(cache, existing-slot)
+    rtn when(cache-entry-alive(existing)).then({
+        when(cache.removal-listener-enabled).then({
+            kernel.apply(cache.removal-listener, [existing.key, existing.value, "replaced"])
+        })
+        cache.weighted-size = cache.weighted-size - existing.weight + weight
+        existing.value = value
+        existing.weight = weight
+        existing.write-time = cache.tick
+        existing.access-time = cache.tick
+        when(cache.expire-after-write-enabled).then({
+            index-deque-move-to-back-present(cache.write-order, existing-slot)
+        })
+        when(cache.expire-after-access-enabled).then({
+            index-deque-move-to-back-present(cache.access-order, existing-slot)
+        })
+        cache-touch(cache, existing-slot)
+        rtn existing-slot * 2
+    }).else({
+        val slot = cache-alloc-slot(cache)
+        rtn when(slot >= 0).then({
+            val entry = CacheEntry {
+                key = key,
+                value = value,
+                weight = weight,
+                write-time = cache.tick,
+                access-time = cache.tick,
+                queue = 0,
+                hash = hash
+            }
+            arr-set-mut(cache.entries, slot, entry)
+            flat-index-map-put-hashed(cache.index, key, slot, hash)
+            cache-link-queue(cache, 0, slot)
+            when(cache.expire-after-write-enabled).then({
+                index-deque-link-last-present(cache.write-order, slot)
+            })
+            when(cache.expire-after-access-enabled).then({
+                index-deque-link-last-present(cache.access-order, slot)
+            })
+            cache.size = cache.size + 1
+            cache.weighted-size = cache.weighted-size + weight
+            rtn (slot * 2) + 1
+        }).else({ rtn -1 })
+    })
+}
+
+fnc cache-load-value(cache: Cache, key: any, loader: any) -> any {
+    val started = cache.tick
+    val loaded = kernel.apply(loader, [key])
+    cache.tick = cache.tick + 1
+    cache-record-load-success(cache, started)
+    cache-put(cache, key, loaded)
+    rtn loaded
+}
+
+fnc cache-refresh-slot(cache: Cache, slot: int) -> bool {
+    val entry = cache-entry-at(cache, slot)
+    rtn when(cache-entry-alive(entry) && type-of(cache.loader) == "function").then({
+        val key = entry.key
+        val started = cache.tick
+        val loaded = kernel.apply(cache.loader, [key])
+        cache.tick = cache.tick + 1
+        cache-record-load-success(cache, started)
+        cache.refreshes = cache.refreshes + 1
+        cache-put(cache, key, loaded)
+        rtn true
+    }).else({ rtn false })
+}
+
+fnc cache-get(cache: Cache, key: any) -> any {
+    cache.tick = cache.tick + 1
+    cache.reads = cache.reads + 1
+
+    val hash = hash-code(key)
+    cache-record-hash(cache, hash)
+    val slot = cache-find-slot-hashed(cache, key, hash)
+    val entry = cache-entry-at(cache, slot)
+
+    rtn when(cache-entry-alive(entry)).then({
+        var expired = false
+        when(cache.expiry-enabled).then({
+            expired = cache-entry-expired(cache, entry)
+        })
+        rtn when(expired).then({
+            cache-remove-slot(cache, slot, "expired")
+            cache.misses = cache.misses + 1
+            cache.sample-misses = cache.sample-misses + 1
+            when(cache.sample-hits + cache.sample-misses >= cache.adapt-sample-size).then({
+                cache-adapt-window(cache)
+            })
+            rtn nil
+        }).else({
+            cache.hits = cache.hits + 1
+            cache.sample-hits = cache.sample-hits + 1
+            val result = entry.value
+            cache-after-read(cache, slot)
+            when(cache.sample-hits + cache.sample-misses >= cache.adapt-sample-size).then({
+                cache-adapt-window(cache)
+            })
+            when(cache-entry-refreshable(cache, entry)).then({
+                cache-refresh-slot(cache, slot)
+            })
+            rtn result
+        })
+    }).else({
+        cache.misses = cache.misses + 1
+        cache.sample-misses = cache.sample-misses + 1
+        when(cache.sample-hits + cache.sample-misses >= cache.adapt-sample-size).then({
+            cache-adapt-window(cache)
+        })
+        rtn nil
+    })
+}
+
+fnc cache-put(cache: Cache, key: any, value: any) -> () {
+    cache-put-weighted(cache, key, value, cache-entry-weight(cache, key, value))
+}
+
+fnc cache-put-weighted(cache: Cache, key: any, value: any, weight: int) -> () {
+    cache.tick = cache.tick + 1
+    cache.writes = cache.writes + 1
+    cache-drain-reads(cache)
+
+    val actual-weight = cache-max(1, weight)
+    val hash = hash-code(key)
+    cache-record-hash(cache, hash)
+
+    when(cache.max-size <= 0 || actual-weight > cache-max(1, cache.max-weight)).then({
+        cache.rejections = cache.rejections + 1
+    }).else({
+        val upsert-result = cache-upsert-entry(cache, key, value, actual-weight, hash)
+        when(upsert-result >= 0).then({
+            when(upsert-result % 2 == 1).then({
+                cache-rebalance-window(cache)
+            })
+            cache-rebalance-protected(cache)
+            cache-trim-capacity(cache)
+            when(cache.writer-enabled).then({
+                val stored = cache-entry-at(cache, upsert-result / 2)
+                when(cache-entry-alive(stored)).then({
+                    when(value-eq(stored.key, key)).then({
+                        kernel.apply(cache.writer, ["write", key, value])
+                    })
+                })
+            })
+        })
+    })
+}
+
+fnc cache-remove(cache: Cache, key: any) -> bool {
+    cache-drain-reads(cache)
+    val hash = hash-code(key)
+    val slot = cache-find-slot-hashed(cache, key, hash)
+    val found = cache-entry-alive(cache-entry-at(cache, slot))
+    when(found).then({
+        cache-remove-slot(cache, slot, "explicit")
+    })
+    rtn found
+}
+
+fnc cache-invalidate(cache: Cache, key: any) -> bool {
+    rtn cache-remove(cache, key)
+}
+
+fnc cache-get-or-load(cache: Cache, key: any, loader: any) -> any {
+    val hits-before = cache.hits
+    val value = cache-get(cache, key)
+    rtn when(cache.hits > hits-before).then({
+        rtn value
+    }).else({
+        rtn when(type-of(loader) == "function").then({
+            rtn cache-load-value(cache, key, loader)
+        }).else({ rtn nil })
+    })
+}
+
+fnc loading-cache-get(cache: Cache, key: any) -> any {
+    rtn cache-get-or-load(cache, key, cache.loader)
+}
+
+fnc async-cache-remove-inflight(acache: AsyncCache, key: any) -> () {
+    flat-map-remove(acache.inflight, key)
+}
+
+fnc async-cache-arm-future(acache: AsyncCache, key: any, future: CacheFuture, started: int) -> CacheFuture {
+    val success-callback = { value ->
+        cache-record-load-success(acache.cache, started)
+        cache-put(acache.cache, key, value)
+        async-cache-remove-inflight(acache, key)
+    }
+    val failure-callback = { error ->
+        cache-record-load-failure(acache.cache)
+        async-cache-remove-inflight(acache, key)
+    }
+    cache-future-on-success(future, success-callback)
+    cache-future-on-failure(future, failure-callback)
+    rtn future
+}
+
+fnc async-cache-chain-loaded(source: CacheFuture, target: CacheFuture) -> CacheFuture {
+    when(source.state == "success").then({
+        cache-future-complete(target, source.value)
+    }).else({
+        when(source.state == "failure").then({
+            cache-future-fail(target, source.error)
+        }).else({
+            val success-callback = { value ->
+                cache-future-complete(target, value)
+            }
+            val failure-callback = { error ->
+                cache-future-fail(target, error)
+            }
+            cache-future-on-success(source, success-callback)
+            cache-future-on-failure(source, failure-callback)
+        })
+    })
+    rtn target
+}
+
+fnc async-cache-run-loader(acache: AsyncCache, key: any, loader: any, future: CacheFuture) -> CacheFuture {
+    val loaded = kernel.apply(loader, [key, future])
+    when(cache-future-ready(future) == false).then({
+        when(type-of(loaded) == "CacheFuture").then({
+            async-cache-chain-loaded(loaded, future)
+        }).else({
+            when(type-of(loaded) != "unit").then({
+                cache-future-complete(future, loaded)
+            })
+        })
+    })
+    rtn future
+}
+
+fnc async-cache-get(acache: AsyncCache, key: any) -> CacheFuture {
+    val lookup = cache-lookup(acache.cache, key)
+    rtn when(lookup.hit).then({
+        rtn cache-future-success(lookup.value)
+    }).else({
+        rtn cache-future-failure("missing")
+    })
+}
+
+fnc async-cache-get-or-load(acache: AsyncCache, key: any, loader: any) -> CacheFuture {
+    val lookup = cache-lookup(acache.cache, key)
+    rtn when(lookup.hit).then({
+        rtn cache-future-success(lookup.value)
+    }).else({
+        val pending = flat-map-get(acache.inflight, key)
+        rtn when(pending.found).then({
+            rtn pending.value
+        }).else({
+            rtn when(type-of(loader) == "function").then({
+                val future = cache-future-pending()
+                val started = acache.cache.tick
+                flat-map-put(acache.inflight, key, future)
+                async-cache-arm-future(acache, key, future, started)
+                rtn async-cache-run-loader(acache, key, loader, future)
+            }).else({
+                rtn cache-future-failure("missing")
+            })
+        })
+    })
+}
+
+fnc async-loading-cache-get(acache: AsyncCache, key: any) -> CacheFuture {
+    rtn async-cache-get-or-load(acache, key, acache.loader)
+}
+
+fnc async-cache-put(acache: AsyncCache, key: any, value: any) -> CacheFuture {
+    val pending = flat-map-get(acache.inflight, key)
+    rtn when(pending.found).then({
+        rtn cache-future-complete(pending.value, value)
+    }).else({
+        cache-put(acache.cache, key, value)
+        rtn cache-future-success(value)
+    })
+}
+
+fnc async-cache-complete(acache: AsyncCache, key: any, value: any) -> CacheFuture {
+    rtn async-cache-put(acache, key, value)
+}
+
+fnc async-cache-fail(acache: AsyncCache, key: any, error: any) -> CacheFuture {
+    val pending = flat-map-get(acache.inflight, key)
+    rtn when(pending.found).then({
+        rtn cache-future-fail(pending.value, error)
+    }).else({
+        rtn cache-future-failure(error)
+    })
+}
+
+fnc async-cache-invalidate(acache: AsyncCache, key: any) -> bool {
+    val removed = cache-invalidate(acache.cache, key)
+    val pending = flat-map-get(acache.inflight, key)
+    when(pending.found).then({
+        cache-future-fail(pending.value, "invalidated")
+        async-cache-remove-inflight(acache, key)
+    })
+    rtn removed || pending.found
+}
+
+fnc cache-refresh(cache: Cache, key: any) -> bool {
+    val slot = cache-find-slot(cache, key)
+    rtn cache-refresh-slot(cache, slot)
+}
+
+fnc cache-get-all(cache: Cache, keys: list, loader: any) -> list {
+    val values = []
+    forEach(keys, fnc(key: any) -> () {
+        arr-push-mut(values, cache-get-or-load(cache, key, loader))
+    })
+    rtn values
+}
+
+fnc cache-clear(cache: Cache) -> () {
+    var slot = 0
+    loop-while({ rtn slot < cache.arena-capacity }, {
+        val entry = cache-entry-at(cache, slot)
+        when(cache-entry-alive(entry)).then({
+            when(cache.removal-listener-enabled).then({
+                kernel.apply(cache.removal-listener, [entry.key, entry.value, "explicit"])
+            })
+            when(cache.writer-enabled).then({
+                kernel.apply(cache.writer, ["delete", entry.key, entry.value, "explicit"])
+            })
+        })
+        slot = slot + 1
+    })
+    cache.entries = arr-new(cache.arena-capacity, nil)
+    flat-index-map-clear(cache.index)
+    cache.free = []
+    cache-build-free(cache.free, 0, cache.arena-capacity)
+    index-deque-clear(cache.window)
+    index-deque-clear(cache.probation)
+    index-deque-clear(cache.protected)
+    when(cache.expire-after-write-enabled).then({
+        index-deque-clear(cache.write-order)
+    })
+    when(cache.expire-after-access-enabled).then({
+        index-deque-clear(cache.access-order)
+    })
+    cache.read-buffer-size = 0
+    frequency-sketch-clear(cache.sketch)
+    cache.size = 0
+    cache.weighted-size = 0
+}
+
+fnc cache-invalidate-all(cache: Cache) -> () {
+    cache-clear(cache)
+}
+
+fnc cache-expire-write-order(cache: Cache) -> () {
+    var done = false
+    loop-while({ rtn done == false && cache.write-order.size > 0 }, {
+        val slot = index-deque-front(cache.write-order)
+        val entry = cache-entry-at(cache, slot)
+        when(cache-entry-alive(entry)).then({
+            when((cache.tick - entry.write-time) > cache.expire-after-write).then({
+                cache-remove-slot(cache, slot, "expired")
+            }).else({
+                done = true
+            })
+        }).else({
+            index-deque-unlink(cache.write-order, slot)
+        })
+    })
+}
+
+fnc cache-expire-access-order(cache: Cache) -> () {
+    var done = false
+    loop-while({ rtn done == false && cache.access-order.size > 0 }, {
+        val slot = index-deque-front(cache.access-order)
+        val entry = cache-entry-at(cache, slot)
+        when(cache-entry-alive(entry)).then({
+            when((cache.tick - entry.access-time) > cache.expire-after-access).then({
+                cache-remove-slot(cache, slot, "expired")
+            }).else({
+                done = true
+            })
+        }).else({
+            index-deque-unlink(cache.access-order, slot)
+        })
+    })
+}
+
+fnc cache-clean-up(cache: Cache) -> () {
+    cache-drain-reads(cache)
+    when(cache.expire-after-write-enabled).then({
+        cache-expire-write-order(cache)
+    })
+    when(cache.expire-after-access-enabled).then({
+        cache-expire-access-order(cache)
+    })
+    cache-trim-capacity(cache)
+}
+
+fnc cache-evict(cache: Cache) -> () {
+    cache-drain-reads(cache)
+    val victim = cache-select-victim-slot(cache)
+    when(victim >= 0).then({
+        cache-remove-slot(cache, victim, "size")
+    })
+}
+
+fnc cache-size(cache: Cache) -> int {
+    rtn cache.size
+}
+
+fnc cache-stats(cache: Cache) -> CacheStats {
+    val requests = cache.hits + cache.misses
+    val hit-rate = when(requests > 0).then({
+        rtn (cache.hits * 1000) / requests
+    }).else({ rtn 0 })
+    val loads = cache.load-successes + cache.load-failures
+    val average-load-penalty = when(loads > 0).then({
+        rtn cache.total-load-time / loads
+    }).else({ rtn 0 })
+    rtn CacheStats {
+        size = cache.size,
+        hits = cache.hits,
+        misses = cache.misses,
+        evictions = cache.evictions,
+        eviction-weight = cache.eviction-weight,
+        admissions = cache.admissions,
+        rejections = cache.rejections,
+        requests = requests,
+        hit-rate = hit-rate,
+        load-successes = cache.load-successes,
+        load-failures = cache.load-failures,
+        total-load-time = cache.total-load-time,
+        average-load-penalty = average-load-penalty,
+        refreshes = cache.refreshes
+    }
+}
+
+fnc cache-lookup(cache: Cache, key: any) -> CacheLookup {
+    val hits-before = cache.hits
+    val value = cache-get(cache, key)
+    rtn CacheLookup { cache = cache, value = value, hit = cache.hits > hits-before }
+}
+
+fnc cache-put-result(cache: Cache, key: any, value: any) -> Cache {
+    cache-put(cache, key, value)
+    rtn cache
+}
+
+fnc cache-remove-result(cache: Cache, key: any) -> Cache {
+    cache-remove(cache, key)
+    rtn cache
+}

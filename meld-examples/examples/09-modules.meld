@@ -1,0 +1,18 @@
+// 09 — Modules
+// imp loads code from other files.
+
+// Note: imp resolves relative to the file's directory.
+// imp math  →  loads math.meld from same directory
+
+fnc helper(x: int) -> int { rtn x * 10 }
+
+fnc main() -> () {
+    // Functions defined in this module
+    println("helper(5) = " + helper(5))
+
+    // Module system supports:
+    // imp math           → basic import
+    // imp m = std.math   → aliased import
+    // imp { sin } = math → destructured import
+    println("modules loaded successfully")
+}

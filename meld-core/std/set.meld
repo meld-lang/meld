@@ -1,0 +1,36 @@
+// std/set.meld — Unique value collection
+// Implemented as a deduplicated list.
+
+fnc set-new() -> list { rtn [] }
+
+fnc set-add(s: list, value: any) -> list {
+    rtn when(set-has(s, value)).then({ rtn s }).else({ rtn push(s, value) })
+}
+
+fnc set-has(s: list, value: any) -> bool {
+    rtn len(filter(s, fnc(item: any) -> bool { rtn item == value })) > 0
+}
+
+fnc set-remove(s: list, value: any) -> list {
+    rtn filter(s, fnc(item: any) -> bool { rtn item != value })
+}
+
+fnc set-size(s: list) -> int { rtn len(s) }
+
+fnc set-union(a: list, b: list) -> list {
+    rtn reduce(b, a, fnc(acc: any, item: any) -> any { rtn set-add(acc, item) })
+}
+
+fnc set-intersection(a: list, b: list) -> list {
+    rtn filter(a, fnc(item: any) -> bool { rtn set-has(b, item) })
+}
+
+fnc set-difference(a: list, b: list) -> list {
+    rtn filter(a, fnc(item: any) -> bool { rtn set-has(b, item) == false })
+}
+
+fnc set-from-list(items: list) -> list {
+    rtn reduce(items, set-new(), fnc(acc: any, item: any) -> any {
+        rtn set-add(acc, item)
+    })
+}

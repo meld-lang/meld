@@ -1,0 +1,27 @@
+// 29 — Web Server Pattern (Simulated)
+// Request/response pattern using structs.
+
+fnc make-request(method: string, path: string) -> Request {
+    rtn Request { method = method, path = path }
+}
+
+fnc make-response(status: int, body: string) -> Response {
+    rtn Response { status = status, body = body }
+}
+
+fnc handle-request(req: Request) -> Response {
+    rtn when(req.path == "/").then({ rtn make-response(200, "Welcome!") })
+        .when(req.path == "/hello").then({ rtn make-response(200, "Hello, World!") })
+        .else({ rtn make-response(404, "Not Found") })
+}
+
+fnc main() -> () {
+    val r1 = handle-request(make-request("GET", "/"))
+    println(r1.status + " " + r1.body)
+
+    val r2 = handle-request(make-request("GET", "/hello"))
+    println(r2.status + " " + r2.body)
+
+    val r3 = handle-request(make-request("GET", "/missing"))
+    println(r3.status + " " + r3.body)
+}

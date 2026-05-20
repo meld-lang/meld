@@ -1,0 +1,4 @@
+fnc main() -> () {
+    Console.println("effect call")
+    println("direct call")
+}

@@ -1,0 +1,38 @@
+// 43 — Type Aliases
+// Compile-time spelling for existing types. Improves readability
+// without introducing new runtime types.
+
+// Aliases for primitive types
+// type UserId = int
+// type Email = string
+// type Score = float
+
+// In Meld, we simulate type aliases with wrapper structs
+// that carry semantic meaning.
+
+fnc format-user(id: int, email: string) -> string {
+    rtn "User #" + id + " <" + email + ">"
+}
+
+fnc format-score(name: string, score: float) -> string {
+    rtn name + ": " + score + " points"
+}
+
+// Type aliases via naming conventions — the function signatures
+// document intent even without a formal `type` keyword.
+fnc lookup-user(id: int) -> Result {
+    rtn when(id > 0).then({ rtn Ok(format-user(id, "user@example.com")) })
+        .else({ rtn Err("invalid user id") })
+}
+
+fnc main() -> () {
+    val user-id = 42
+    val email = "alice@meld.dev"
+    println(format-user(user-id, email))
+
+    val result = lookup-user(user-id)
+    println("lookup: " + unwrap(result))
+
+    println(format-score("Alice", 98.5))
+    println(format-score("Bob", 87.2))
+}

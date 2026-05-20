@@ -1,0 +1,27 @@
+// 40 — Guard Clauses (Early Return via when/then/else chains)
+// Use chained when/then/else for multi-condition dispatch.
+
+fnc process(n: int) -> string {
+    rtn when(n < 0).then({ rtn "negative, skipping" })
+        .when(n == 0).then({ rtn "zero, nothing to do" })
+        .when(n > 100).then({ rtn "too large" })
+        .else({ rtn "processed: " + n })
+}
+
+fnc http-status(code: int) -> string {
+    rtn when(code == 200).then({ rtn "OK" })
+        .when(code == 404).then({ rtn "Not Found" })
+        .when(code == 500).then({ rtn "Server Error" })
+        .else({ rtn "Unknown: " + code })
+}
+
+fnc main() -> () {
+    println(process(-5))
+    println(process(0))
+    println(process(42))
+    println(process(200))
+
+    println(http-status(200))
+    println(http-status(404))
+    println(http-status(418))
+}

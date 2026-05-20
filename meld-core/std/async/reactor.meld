@@ -1,0 +1,104 @@
+// std/async/reactor.meld - pure Meld reactor facade
+//
+// The kernel owns only opaque OS multiplexing handles. Readiness routing,
+// waker registration, and pollable I/O are library code.
+
+imp kernel
+imp std.async.core
+
+struct Reactor {
+    val handle: int
+}
+
+struct ReadyEvent {
+    val fd: int
+    val interest: int
+    val error: any
+}
+
+fnc readable() -> int { rtn 1 }
+fnc writable() -> int { rtn 2 }
+fnc closed() -> int { rtn 4 }
+
+fnc create-reactor() -> Reactor {
+    rtn Reactor { handle = kernel.reactor-create("epoll") }
+}
+
+fnc register(reactor: Reactor, fd: int, interest: int, waker: Waker) -> () {
+    kernel.reactor-register(reactor.handle, fd, interest, waker.scheduler-id, waker.task-id, waker.generation)
+}
+
+fnc reregister(reactor: Reactor, fd: int, interest: int, waker: Waker) -> () {
+    kernel.reactor-reregister(reactor.handle, fd, interest, waker.scheduler-id, waker.task-id, waker.generation)
+}
+
+fnc unregister(reactor: Reactor, fd: int) -> () {
+    kernel.reactor-unregister(reactor.handle, fd)
+}
+
+fnc poll-reactor(reactor: Reactor, timeout-ms: int) -> list {
+    rtn kernel.reactor-poll(reactor.handle, timeout-ms)
+}
+
+fnc readiness(reactor: Reactor, fd: int, interest: int) -> Pollable[ReadyEvent] {
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[ReadyEvent] {
+            val event = kernel.reactor-ready(reactor.handle, fd, interest)
+            rtn when(is-nil(event)).then({
+                register(reactor, fd, interest, ctx.waker)
+                rtn Pending()
+            }).else({
+                rtn Ready(ReadyEvent { fd = fd, interest = interest, error = nil })
+            })
+        }
+    }
+}
+
+fnc read-bytes(reactor: Reactor, fd: int, buffer-size: int) -> Pollable[string] {
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[string] {
+            val bytes = kernel.fd-read(fd, buffer-size)
+            rtn when(is-nil(bytes)).then({
+                register(reactor, fd, readable(), ctx.waker)
+                rtn Pending()
+            }).else({
+                rtn Ready(bytes)
+            })
+        }
+    }
+}
+
+fnc write-bytes(reactor: Reactor, fd: int, data: string) -> Pollable[int] {
+    var written = 0
+
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[int] {
+            rtn when(written >= len(data)).then({
+                rtn Ready(written)
+            }).else({
+                val count = kernel.fd-write(fd, data, written)
+                rtn when(is-nil(count)).then({
+                    register(reactor, fd, writable(), ctx.waker)
+                    rtn Pending()
+                }).else({
+                    written = written + count
+                    rtn when(written >= len(data)).then({
+                        rtn Ready(written)
+                    }).else({
+                        register(reactor, fd, writable(), ctx.waker)
+                        rtn Pending()
+                    })
+                })
+            })
+        }
+    }
+}
+
+fnc close-fd(reactor: Reactor, fd: int) -> () {
+    unregister(reactor, fd)
+    kernel.fd-close(fd)
+}
+
+fnc zero-buffer(data: string) -> () {
+    kernel.secure-zero(data)
+}

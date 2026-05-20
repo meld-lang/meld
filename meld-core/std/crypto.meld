@@ -1,0 +1,44 @@
+// std/crypto.meld — Cryptographic primitives
+// Provides hashing, signing, and key management.
+
+struct SecretKey {
+    val bytes: list
+    val algorithm: string
+}
+
+struct PublicKey {
+    val bytes: list
+    val algorithm: string
+}
+
+struct KeyPair {
+    val public-key: PublicKey
+    val secret-key: SecretKey
+}
+
+struct Signature {
+    val bytes: list
+    val algorithm: string
+}
+
+// Key generation
+fnc generate-keypair(algorithm: string) -> KeyPair {
+    rtn KeyPair {
+        public-key = PublicKey { bytes = [], algorithm = algorithm },
+        secret-key = SecretKey { bytes = [], algorithm = algorithm }
+    }
+}
+
+// Hashing
+fnc hash(data: string, algorithm: string) -> string {
+    rtn kernel.call("crypto_hash", data, algorithm)
+}
+
+// Signing
+fnc sign(data: string, key: SecretKey) -> Signature {
+    rtn Signature { bytes = [], algorithm = key.algorithm }
+}
+
+fnc verify(data: string, signature: Signature, key: PublicKey) -> bool {
+    rtn kernel.call("crypto_verify", data, signature.bytes, key.bytes)
+}

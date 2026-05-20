@@ -1,0 +1,103 @@
+// std/async/task.meld - task handles over pollable work
+//
+// Tasks are scheduler-owned handles. Creating a task does not execute work;
+// the runtime must poll its frame.
+
+imp std.async.core
+imp std.async.scheduler
+
+struct Task[T] {
+    val runtime: Runtime
+    val frame: TaskFrame
+}
+
+fnc spawn-task[T](runtime: Runtime, work: Pollable[T]) -> Task[T] {
+    rtn Task { runtime = runtime, frame = spawn-pollable(runtime, work) }
+}
+
+fnc task-id[T](task: Task[T]) -> int {
+    rtn task.frame.id
+}
+
+fnc is-completed[T](task: Task[T]) -> bool {
+    rtn task.frame.state == "completed"
+}
+
+fnc result[T](task: Task[T]) -> any {
+    rtn task.frame.result
+}
+
+fnc error[T](task: Task[T]) -> any {
+    rtn task.frame.error
+}
+
+// Convert a task handle back into a pollable value. This is the library
+// equivalent of await: it is still lazy and must be polled by a runtime.
+fnc await-task[T](task: Task[T]) -> Pollable[T] {
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[T] {
+            rtn when(task.frame.state == "completed").then({
+                rtn when(is-nil(task.frame.error)).then({
+                    rtn Ready(task.frame.result)
+                }).else({
+                    rtn Failed(task.frame.error)
+                })
+            }).else({
+                task-add-waiter(task.frame, ctx.waker)
+                rtn Pending()
+            })
+        }
+    }
+}
+
+fnc cancel-task[T](task: Task[T]) -> () {
+    cancel-frame-in-runtime(task.runtime, task.frame)
+}
+
+fnc create-task[T](work: Pollable[T]) -> Pollable[T] {
+    rtn work
+}
+
+fnc deferred[T]() -> Pollable[T] {
+    var done = false
+    var stored-result = nil
+    var stored-error = nil
+
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[T] {
+            rtn when(done == false).then({
+                rtn Pending()
+            }).else({
+                rtn when(is-nil(stored-error)).then({
+                    rtn Ready(stored-result)
+                }).else({
+                    rtn Failed(stored-error)
+                })
+            })
+        }
+    }
+}
+
+fnc from-function[T](f: fnc() -> T) -> Pollable[T] {
+    var started = false
+    var finished = false
+    var value = nil
+    var err = nil
+
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[T] {
+            rtn when(started == false).then({
+                started = true
+                value = f()
+                finished = true
+                rtn Ready(value)
+            }).else({
+                rtn when(finished).then({
+                    rtn when(is-nil(err)).then({ rtn Ready(value) }).else({ rtn Failed(err) })
+                }).else({
+                    rtn Pending()
+                })
+            })
+        }
+    }
+}

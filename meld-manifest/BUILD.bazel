@@ -1,0 +1,519 @@
+"""
+BUILD configuration for meld-manifest package.
+This package provides the .meld manifest sidecar, binary tombstone,
+cryptographic signing/verification, and SRT-based sandbox enforcement.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+_COPTS = select({
+    "@platforms//os:windows": ["/std:c++latest", "/W3", "/EHsc", "/Zc:__cplusplus"],
+    "//conditions:default": ["-std=c++23", "-Wall", "-Wextra", "-Wpedantic", "-Werror"],
+})
+
+# Core types — Effect enum, EffectBitmask, ResourceBounds, SymbolEffectEntry
+cc_library(
+    name = "core_types",
+    hdrs = ["include/meld/manifest/core_types.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+)
+
+# Manifest — .meld sidecar serialization, code hashing, ManifestEmitter
+cc_library(
+    name = "manifest",
+    srcs = ["src/manifest.cpp"],
+    hdrs = ["include/meld/manifest/manifest.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":core_types",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# Tombstone — .note.meld ELF/Mach-O section embedding and extraction
+cc_library(
+    name = "tombstone",
+    srcs = ["src/tombstone.cpp"],
+    hdrs = ["include/meld/manifest/tombstone.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        "@nlohmann_json//:json",
+    ],
+)
+
+# BridgeRule — FFI @effect annotation enforcement
+cc_library(
+    name = "bridge_rule",
+    srcs = ["src/bridge_rule.cpp"],
+    hdrs = ["include/meld/manifest/bridge_rule.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":core_types",
+    ],
+)
+
+# EffectElision — whole-binary call-graph effect stripping
+cc_library(
+    name = "effect_elision",
+    srcs = ["src/effect_elision.cpp"],
+    hdrs = ["include/meld/manifest/effect_elision.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":manifest",
+    ],
+)
+
+# SigningEngine — traditional + Sigstore cryptographic signing
+cc_library(
+    name = "signing",
+    srcs = ["src/signing.cpp"],
+    hdrs = ["include/meld/manifest/signing.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":manifest",
+        ":tombstone",
+    ],
+)
+
+# Verifier — offline + online audit verification modes
+cc_library(
+    name = "verifier",
+    srcs = ["src/verifier.cpp"],
+    hdrs = ["include/meld/manifest/verifier.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":manifest",
+        ":signing",
+        ":tombstone",
+    ],
+)
+
+# IMA integration — optional hardware-level integrity
+cc_library(
+    name = "ima_integration",
+    srcs = ["src/ima_integration.cpp"],
+    hdrs = ["include/meld/manifest/ima_integration.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+)
+
+# MdebugSidecar — .mdebug debug sidecar serialization and file I/O
+cc_library(
+    name = "mdebug_sidecar",
+    srcs = ["src/mdebug_sidecar.cpp"],
+    hdrs = ["include/meld/manifest/mdebug_sidecar.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+)
+
+# SandboxProvider — abstract interface + PassthroughProvider
+cc_library(
+    name = "sandbox_provider",
+    srcs = ["src/sandbox_provider.cpp"],
+    hdrs = ["include/meld/manifest/sandbox_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":core_types",
+    ],
+)
+
+# MeldSRTProvider — SRT-backed sandbox with effect-to-policy mapping
+cc_library(
+    name = "srt_provider",
+    srcs = ["src/srt_provider.cpp"],
+    hdrs = ["include/meld/manifest/srt_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":sandbox_provider",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# PolicyLifecycleManager — ephemeral srt-settings.json lifecycle
+cc_library(
+    name = "policy_lifecycle",
+    srcs = ["src/policy_lifecycle.cpp"],
+    hdrs = ["include/meld/manifest/policy_lifecycle.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":sandbox_provider",
+        ":srt_provider",
+    ],
+)
+
+# BuildSandbox — build-time isolation for first/third-party targets
+cc_library(
+    name = "build_sandbox",
+    srcs = ["src/build_sandbox.cpp"],
+    hdrs = ["include/meld/manifest/build_sandbox.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":sandbox_provider",
+    ],
+)
+
+# McpSandbox — MCP tool hardening wrapper
+cc_library(
+    name = "mcp_sandbox",
+    srcs = ["src/mcp_sandbox.cpp"],
+    hdrs = ["include/meld/manifest/mcp_sandbox.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":manifest",
+        ":sandbox_provider",
+    ],
+)
+
+# SandboxDiagnostics — structured diagnostics and observability
+cc_library(
+    name = "sandbox_diagnostics",
+    srcs = ["src/sandbox_diagnostics.cpp"],
+    hdrs = ["include/meld/manifest/sandbox_diagnostics.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":core_types",
+    ],
+)
+
+# meld-sign CLI binary
+cc_binary(
+    name = "meld-sign",
+    srcs = ["src/meld_sign_main.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":manifest",
+        ":signing",
+        ":tombstone",
+    ],
+)
+
+# --- Tests ---
+
+cc_test(
+    name = "core_types_tests",
+    srcs = ["tests/core_types_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":core_types",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "manifest_tests",
+    srcs = ["tests/manifest_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":manifest",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "manifest_roundtrip_property_tests",
+    srcs = ["tests/manifest_roundtrip_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":manifest",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+cc_test(
+    name = "tombstone_tests",
+    srcs = ["tests/tombstone_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":tombstone",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "bridge_rule_tests",
+    srcs = ["tests/bridge_rule_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":bridge_rule",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "effect_elision_tests",
+    srcs = ["tests/effect_elision_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":effect_elision",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "signing_tests",
+    srcs = ["tests/signing_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":signing",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "verifier_tests",
+    srcs = ["tests/verifier_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":verifier",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "ima_integration_tests",
+    srcs = ["tests/ima_integration_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":ima_integration",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "sandbox_provider_tests",
+    srcs = ["tests/sandbox_provider_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":sandbox_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "srt_provider_tests",
+    srcs = ["tests/srt_provider_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":srt_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "effect_mapping_property_tests",
+    srcs = ["tests/effect_mapping_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":srt_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+cc_test(
+    name = "policy_lifecycle_tests",
+    srcs = ["tests/policy_lifecycle_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":policy_lifecycle",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "srt_cli_tests",
+    srcs = ["tests/srt_cli_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":srt_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "build_sandbox_tests",
+    srcs = ["tests/build_sandbox_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":build_sandbox",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "mcp_sandbox_tests",
+    srcs = ["tests/mcp_sandbox_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_sandbox",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "sandbox_diagnostics_tests",
+    srcs = ["tests/sandbox_diagnostics_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":sandbox_diagnostics",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "mdebug_sidecar_tests",
+    srcs = ["tests/mdebug_sidecar_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mdebug_sidecar",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "mdebug_sidecar_roundtrip_property_tests",
+    srcs = ["tests/mdebug_sidecar_roundtrip_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mdebug_sidecar",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Integration tests
+cc_test(
+    name = "pipeline_integration_tests",
+    srcs = ["tests/pipeline_integration_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":manifest",
+        ":signing",
+        ":tombstone",
+        ":verifier",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "tamper_detection_integration_tests",
+    srcs = ["tests/tamper_detection_integration_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":manifest",
+        ":signing",
+        ":tombstone",
+        ":verifier",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "sandbox_enforcement_integration_tests",
+    srcs = ["tests/sandbox_enforcement_integration_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":manifest",
+        ":sandbox_diagnostics",
+        ":sandbox_provider",
+        ":srt_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# Comprehensive test suite
+test_suite(
+    name = "all_tests",
+    tests = [
+        ":core_types_tests",
+        ":manifest_tests",
+        ":manifest_roundtrip_property_tests",
+        ":tombstone_tests",
+        ":bridge_rule_tests",
+        ":effect_elision_tests",
+        ":signing_tests",
+        ":verifier_tests",
+        ":ima_integration_tests",
+        ":sandbox_provider_tests",
+        ":srt_provider_tests",
+        ":effect_mapping_property_tests",
+        ":policy_lifecycle_tests",
+        ":srt_cli_tests",
+        ":build_sandbox_tests",
+        ":mcp_sandbox_tests",
+        ":sandbox_diagnostics_tests",
+        ":pipeline_integration_tests",
+        ":tamper_detection_integration_tests",
+        ":sandbox_enforcement_integration_tests",
+        ":mdebug_sidecar_tests",
+        ":mdebug_sidecar_roundtrip_property_tests",
+    ],
+)
+
+# FirecrackerProvider — MicroVM sandbox provider (Req 18)
+cc_library(
+    name = "firecracker_provider",
+    srcs = ["src/firecracker_provider.cpp"],
+    hdrs = ["include/meld/manifest/firecracker_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":sandbox_provider",
+        ":srt_provider",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# meldn — Meld Notary CLI (Req 8)
+cc_binary(
+    name = "meldn",
+    srcs = ["src/meldn_main.cpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":signing",
+        ":verifier",
+        ":tombstone",
+    ],
+)

@@ -1,0 +1,55 @@
+"""
+BUILD configuration for the melds production supervisor binary.
+
+melds is a standalone C++20 binary that verifies binary integrity via
+Sigstore and enforces the Effect Firewall via OS-level sandboxing.
+
+It depends ONLY on meld-manifest libraries — NO deps on meld-core,
+meld-cli, or LLVM.
+
+Recommended as ENTRYPOINT for production Docker containers:
+    ENTRYPOINT ["melds", "./app.bin"]
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+
+_COPTS = select({
+    "@platforms//os:windows": ["/std:c++latest", "/W3", "/EHsc", "/Zc:__cplusplus"],
+    "//conditions:default": ["-std=c++20", "-Wall", "-Wextra", "-Wpedantic", "-Werror"],
+})
+
+# melds — production supervisor binary (Req 21)
+# Statically linked, minimal dependencies, <50ms startup overhead
+cc_binary(
+    name = "melds",
+    srcs = ["main.cpp"],
+    copts = _COPTS,
+    linkopts = select({
+        "@platforms//os:linux": ["-static"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//meld-manifest:manifest",
+        "//meld-manifest:tombstone",
+        "//meld-manifest:verifier",
+        "//meld-manifest:sandbox_provider",
+        "//meld-manifest:srt_provider",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Unit tests for melds supervisor
+cc_test(
+    name = "melds_test",
+    srcs = ["melds_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        "//meld-manifest:manifest",
+        "//meld-manifest:tombstone",
+        "//meld-manifest:verifier",
+        "//meld-manifest:sandbox_provider",
+        "//meld-manifest:srt_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)

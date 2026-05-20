@@ -1,0 +1,17 @@
+// std/process.meld — Subprocess execution via effects
+
+@uses(Process)
+fnc exec(command: string, args: list) -> string {
+    rtn Process.exec(command, args)
+}
+
+@uses(Process)
+fnc exit-with(code: int) -> () {
+    Process.exit(code)
+}
+
+fnc output-lines(output: string) -> list {
+    rtn filter(split(output, "\n"), fnc(line: any) -> bool {
+        rtn len("" + line) > 0
+    })
+}

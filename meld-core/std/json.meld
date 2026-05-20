@@ -1,0 +1,46 @@
+// std/json.meld — JSON encoding and decoding
+// Provides structured data serialization for agent communication.
+
+@builtin
+effect Json {
+    fnc parse(input: string) -> Result
+    fnc stringify(value: any) -> string
+}
+
+// Encode a value to JSON string
+@uses(Json)
+fnc json-encode(value: any) -> string {
+    rtn Json.stringify(value)
+}
+
+// Decode a JSON string to a value
+@uses(Json)
+fnc json-decode(input: string) -> Result {
+    rtn Json.parse(input)
+}
+
+// Build JSON objects from key-value pairs
+fnc json-object(pairs: list) -> string {
+    val inner = reduce(pairs, "", fnc(acc: any, pair: any) -> any {
+        rtn when(acc == "").then({ rtn "" + pair }).else({ rtn acc + ", " + pair })
+    })
+    rtn "{ " + inner + " }"
+}
+
+fnc json-key(key: string, value: string) -> string {
+    rtn "\"" + key + "\": " + value
+}
+
+fnc json-string(value: string) -> string { rtn "\"" + value + "\"" }
+fnc json-number(value: int) -> string { rtn "" + value }
+fnc json-bool(value: bool) -> string {
+    rtn when(value).then({ rtn "true" }).else({ rtn "false" })
+}
+fnc json-null() -> string { rtn "null" }
+
+fnc json-array(items: list) -> string {
+    val inner = reduce(items, "", fnc(acc: any, item: any) -> any {
+        rtn when(acc == "").then({ rtn "" + item }).else({ rtn acc + ", " + item })
+    })
+    rtn "[" + inner + "]"
+}

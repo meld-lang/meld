@@ -1,0 +1,70 @@
+// std/observe/otel.meld — OpenTelemetry-compatible observability
+// Provides tracing, metrics, and logging via the effect system.
+
+struct SpanContext {
+    val trace-id: string
+    val span-id: string
+    val parent-span-id: string?
+}
+
+struct Span {
+    val name: string
+    val kind: string
+    val context: SpanContext
+    var status: string
+    var attributes: list
+    var start-time: int
+    var end-time: int?
+}
+
+struct Metric {
+    val name: string
+    val kind: string
+    var value: float
+    var labels: list
+}
+
+// Current span context
+var current-span: any = nil
+
+// Start a new span
+@requires(Time)
+fnc start-span(name: string, kind: string) -> Span {
+    val span = Span {
+        name = name,
+        kind = kind,
+        context = SpanContext {
+            trace-id = "trace-" + to-string(Time.now()),
+            span-id = "span-" + to-string(Time.now()),
+            parent-span-id = nil
+        },
+        status = "ok",
+        attributes = [],
+        start-time = Time.now(),
+        end-time = nil
+    }
+    current-span = span
+    rtn span
+}
+
+// End a span
+@requires(Time)
+fnc end-span(span: Span) -> () {
+    span.end-time = Time.now()
+    current-span = nil
+}
+
+// Add attribute to span
+fnc set-attribute(span: Span, key: string, value: any) -> () {
+    span.attributes = arr-push(span.attributes, key + "=" + to-string(value))
+}
+
+// Create a counter metric
+fnc create-counter(name: string) -> Metric {
+    rtn Metric { name = name, kind = "counter", value = 0.0, labels = [] }
+}
+
+// Increment a counter
+fnc increment(metric: Metric, amount: float) -> () {
+    metric.value = metric.value + amount
+}

@@ -1,0 +1,1890 @@
+"""
+BUILD configuration for meld-lang package.
+This package contains the core Meld programming language implementation.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "std/cache.meld",
+    "std/async/atomic.meld",
+    "std/async/atomic_queue.meld",
+    "std/async/channel.meld",
+    "std/async/core.meld",
+    "std/async/driver.meld",
+    "std/async/net.meld",
+    "std/async/queue.meld",
+    "std/async/reactor.meld",
+    "std/async/scheduler.meld",
+    "std/async/task.meld",
+    "std/async/timer.meld",
+    "std/kernel.meld",
+    "std/collections/flat_map.meld",
+    "std/collections/flat_index_map.meld",
+    "std/collections/frequency_sketch.meld",
+    "std/collections/index_deque.meld",
+    "std/test/cache/benchmark.meld",
+])
+
+# Kernel library - Core primitives and operations
+cc_library(
+    name = "kernel",
+    srcs = [
+        "src/kernel/primitives.cpp",
+        "src/kernel/operations.cpp",
+        "src/kernel/symbol_table.cpp",
+        "src/kernel/namespace_registry.cpp",
+        "src/kernel/extension_registry.cpp",
+        "src/kernel/control_flow.cpp",
+        "src/kernel/operators.cpp",
+        "src/kernel/type_utils.cpp",
+        "src/kernel/partial_application.cpp",
+    ],
+    hdrs = [
+        "include/meld/kernel/continuation.hpp",
+        "include/meld/kernel/control_flow.hpp",
+        "include/meld/kernel/extension_registry.hpp",
+        "include/meld/kernel/namespace_registry.hpp",
+        "include/meld/kernel/operations.hpp",
+        "include/meld/kernel/operators.hpp",
+        "include/meld/kernel/partial_application.hpp",
+        "include/meld/kernel/primitives.hpp",
+        "include/meld/kernel/symbol_table.hpp",
+        "include/meld/kernel/type_utils.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        "@boost.spirit",
+        "@rttr//:rttr",
+    ],
+)
+
+# MMS — Meld Meta System (type kind expansion)
+cc_library(
+    name = "mms",
+    srcs = ["src/mms/meta_system.cpp"],
+    hdrs = ["include/meld/mms/meta_system.hpp"],
+    includes = ["include"],
+    deps = [":parser"],
+    visibility = ["//visibility:public"],
+)
+
+# LLVM IR text emitter (no LLVM library dependency)
+cc_library(
+    name = "llvm_codegen",
+    srcs = ["src/compiler/llvm/codegen.cpp"],
+    hdrs = ["include/meld/compiler/llvm/codegen.hpp"],
+    includes = ["include"],
+    deps = [":parser"],
+    visibility = ["//visibility:public"],
+)
+
+# Meta library - MetaType system and reflection
+cc_library(
+    name = "meta",
+    srcs = [
+        "src/meta/metatype.cpp",
+        "src/meta/type_of.cpp",
+        "src/meta/type_registration.cpp",
+        "src/meta/reflection_helper.cpp",
+        "src/meta/type_projections.cpp",
+        "src/meta/dynamic_type_builder.cpp",
+        "src/meta/advanced_traits.cpp",
+        "src/meta/trait_objects.cpp",
+        "src/meta/coherence_rules.cpp",
+    ],
+    hdrs = [
+        "include/meld/meta/dynamic_type_builder.hpp",
+        "include/meld/meta/metatype.hpp",
+        "include/meld/meta/reflection_helper.hpp",
+        "include/meld/meta/type_projections.hpp",
+        "include/meld/meta/type_registration.hpp",
+        "include/meld/meta/advanced_traits.hpp",
+        "include/meld/meta/trait_objects.hpp",
+        "include/meld/meta/coherence_rules.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        "@boost.spirit",
+        "@rttr//:rttr",
+    ],
+)
+
+# Trait dispatch library - Bridges trait system with multiple dispatch
+cc_library(
+    name = "trait_dispatch",
+    srcs = [
+        "src/kernel/dispatch.cpp",
+        "src/kernel/dynamic_method_invoker.cpp",
+        "src/kernel/trait_dispatch.cpp",
+    ],
+    hdrs = [
+        "include/meld/kernel/dispatch.hpp",
+        "include/meld/kernel/dynamic_method_invoker.hpp",
+        "include/meld/kernel/trait_dispatch.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":types",
+        "@boost.spirit",
+        "@rttr//:rttr",
+    ],
+)
+
+# Types library - Type instances and collections
+cc_library(
+    name = "types",
+    srcs = [
+        "src/types/instance.cpp",
+        "src/types/nullable.cpp",
+        "src/types/memory.cpp",
+        "src/types/collection.cpp",
+        "src/types/dynamic_property_access.cpp",
+        "src/types/anonymous_types.cpp",
+        "src/types/collection_literal_inference.cpp",
+        "src/types/result.cpp",
+        "src/types/option.cpp",
+        "src/types/error_trait.cpp",
+        "src/types/property.cpp",
+        "src/types/refinement.cpp",
+        "src/types/refinement_runtime.cpp",
+        "src/std/numeric_wrappers.cpp",
+        "src/std/mem.cpp",
+    ],
+    hdrs = [
+        "include/meld/types/anonymous_types.hpp",
+        "include/meld/types/collection_literal_inference.hpp",
+        "include/meld/types/collection.hpp",
+        "include/meld/types/delegate.hpp",
+        "include/meld/types/dynamic_property_access.hpp",
+        "include/meld/types/instance.hpp",
+        "include/meld/types/lazy_sequence.hpp",
+        "include/meld/types/memory.hpp",
+        "include/meld/types/mutable_list.hpp",
+        "include/meld/types/mutable_map.hpp",
+        "include/meld/types/mutable_set.hpp",
+        "include/meld/types/nullable.hpp",
+        "include/meld/types/parallel_executor.hpp",
+        "include/meld/types/persistent_list.hpp",
+        "include/meld/types/persistent_map.hpp",
+        "include/meld/types/persistent_set.hpp",
+        "include/meld/types/property.hpp",
+        "include/meld/types/result.hpp",
+        "include/meld/types/option.hpp",
+        "include/meld/types/error_trait.hpp",
+        "include/meld/types/refinement.hpp",
+        "include/meld/types/refinement_runtime.hpp",
+        "include/meld/types/type_registry.hpp",
+        "include/meld/std/numeric_wrappers.hpp",
+        "include/meld/std/mem.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@boost.spirit",
+    ],
+)
+
+# Parser library - Lexer, parser, and AST
+cc_library(
+    name = "parser",
+    srcs = [
+        "src/parser/lexer.cpp",
+        "src/parser/parser.cpp",
+        "src/parser/x3_grammar.cpp",
+        "src/parser/ast.cpp",
+        "src/parser/query_desugar.cpp",
+        "src/parser/custom_operator_parser.cpp",
+    ],
+    hdrs = [
+        "include/meld/parser/ast.hpp",
+        "include/meld/parser/ast_node.hpp",
+        "include/meld/parser/ast_mutations.hpp",
+        "include/meld/parser/ast_parent_setter.hpp",
+        "include/meld/parser/parser.hpp",
+        "include/meld/parser/x3_grammar.hpp",
+        "include/meld/parser/parser_context.hpp",
+        "include/meld/parser/query_desugar.hpp",
+        "include/meld/parser/custom_operator_parser.hpp",
+    ],
+    defines = [
+        "BOOST_MPL_LIMIT_LIST_SIZE=50",
+    ],
+    features = ["-layering_check"],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        "@boost.spirit",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+
+
+
+
+# Macro library - Macro system and decorators
+cc_library(
+    name = "macro",
+    srcs = [
+        "src/macro/bootstrap.cpp",
+        "src/macro/decorator.cpp",
+        "src/macro/property_decorators.cpp",
+        "src/macro/method_decorators.cpp",
+        "src/macro/constructor_decorators.cpp",
+        "src/macro/composite_decorators.cpp",
+        "src/macro/builder_decorator.cpp",
+        "src/macro/format_decorators.cpp",
+        "src/macro/decorators.cpp",
+        "src/macro/extern_macro.cpp",
+        "src/macro/handle_macro.cpp",
+        "src/macro/operator_macro.cpp",
+        "src/macro/operator_annotations.cpp",
+        "src/macro/effect_annotation.cpp",
+        "src/macro/imposes_annotation.cpp",
+        "src/macro/ast_quote.cpp",
+        "src/macro/attribute.cpp",
+    ],
+    hdrs = [
+        "include/meld/macro/bootstrap.hpp",
+        "include/meld/macro/builder_decorator.hpp",
+        "include/meld/macro/composite_decorators.hpp",
+        "include/meld/macro/constructor_decorators.hpp",
+        "include/meld/macro/decorator.hpp",
+        "include/meld/macro/decorators.hpp",
+        "include/meld/macro/format_decorators.hpp",
+        "include/meld/macro/macro.hpp",
+        "include/meld/macro/method_decorators.hpp",
+        "include/meld/macro/property_decorators.hpp",
+        "include/meld/macro/blueprint.hpp",
+        "include/meld/macro/extern_macro.hpp",
+        "include/meld/macro/handle_macro.hpp",
+        "include/meld/macro/operator_macro.hpp",
+        "include/meld/macro/operator_annotations.hpp",
+        "include/meld/macro/ast_quote.hpp",
+        "include/meld/macro/parent_access.hpp",
+        "include/meld/macro/effect_annotation.hpp",
+        "include/meld/macro/imposes_annotation.hpp",
+        "include/meld/macro/attribute.hpp",
+        "include/meld/macro/const_generics.hpp",
+        "include/meld/macro/derive.hpp",
+        "include/meld/macro/error_propagation.hpp",
+        "include/meld/macro/literal_suffixes.hpp",
+        "include/meld/macro/provenance.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        ":effects",
+        ":compiler",
+        ":stdlib",
+        "@boost.spirit",
+    ],
+)
+
+# AST Quote library - Quasiquoting for macro code generation (Req 2.9)
+cc_library(
+    name = "ast_quote",
+    srcs = ["src/macro/ast_quote.cpp"],
+    hdrs = ["include/meld/macro/ast_quote.hpp"],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@boost.spirit",
+    ],
+)
+
+# AST Abort library - Structured error reporting for macro expansion (Req 2.10)
+cc_library(
+    name = "ast_abort",
+    srcs = ["src/macro/ast_abort.cpp"],
+    hdrs = ["include/meld/macro/ast_abort.hpp"],
+    includes = ["include"],
+    deps = [
+        ":compiler",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# Standard library - Pattern matching, regex, reflection utilities, effects, system, exceptions, async
+cc_library(
+    name = "stdlib",
+    srcs = [
+        "src/stdlib/reflect.cpp",
+        "src/stdlib/pattern_matcher.cpp",
+        "src/stdlib/regex.cpp",
+        "src/stdlib/effects.cpp",
+        "src/stdlib/system.cpp",
+        "src/stdlib/exceptions.cpp",
+        "src/stdlib/async.cpp",
+        "src/stdlib/generator.cpp",
+        "src/stdlib/flow_runtime.cpp",
+    ],
+    hdrs = [
+        "include/meld/stdlib/pattern_matcher.hpp",
+        "include/meld/stdlib/reflect.hpp",
+        "include/meld/stdlib/regex.hpp",
+        "include/meld/stdlib/effects.hpp",
+        "include/meld/stdlib/system.hpp",
+        "include/meld/stdlib/exceptions.hpp",
+        "include/meld/stdlib/async.hpp",
+        "include/meld/stdlib/generator.hpp",
+        "include/meld/stdlib/flow_runtime.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":effects",
+        "@boost.spirit",
+    ],
+)
+
+# Testing library - Property-based testing framework
+cc_library(
+    name = "testing",
+    srcs = [
+    ],
+    hdrs = [
+    ],
+    includes = ["include"],
+    deps = [
+        "@googletest//:gtest",
+    ],
+)
+
+# Serialization library - JSON serialization support
+cc_library(
+    name = "serialization",
+    srcs = [
+        "src/serialization/json_serializer.cpp",
+    ],
+    hdrs = [
+        "include/meld/serialization/json_serializer.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":types",
+        "@nlohmann_json//:json",
+        "@rttr//:rttr",
+    ],
+)
+
+# Compiler library - Type checker, IR, code generation, CAP
+cc_library(
+    name = "compiler",
+    srcs = [
+        "src/compiler/type_checker.cpp",
+        "src/compiler/ir.cpp",
+        "src/compiler/ir_optimization.cpp",
+        "src/compiler/ast_to_ir.cpp",
+        "src/compiler/bytecode_generator.cpp",
+        "src/compiler/codegen.cpp",
+        "src/compiler/jvm_backend.cpp",
+        "src/compiler/cpp_backend.cpp",
+        "src/compiler/wasm_backend.cpp",
+        "src/compiler/rust_backend.cpp",
+        "src/compiler/refinement_checker.cpp",
+        "src/compiler/contract_checker.cpp",
+        "src/compiler/ast_printer.cpp",
+        "src/compiler/cap.cpp",
+        "src/compiler/micro_test_engine.cpp",
+        "src/compiler/compiler.cpp",
+        "src/compiler/effect_checker.cpp",
+        "src/compiler/mcp_generator.cpp",
+        "src/compiler/annotation_persister.cpp",
+        "src/compiler/ide_integration.cpp",
+        "src/compiler/ownership_transpiler.cpp",
+        "src/compiler/ownership_ffi.cpp",
+        "src/compiler/module_definition.cpp",
+        "src/compiler/module_resolver.cpp",
+        "src/compiler/backend_lowering_pass.cpp",
+        "src/compiler/intrinsic_resolution_pass.cpp",
+        "src/compiler/advisory_diagnostics_pass.cpp",
+        "src/compiler/migration_hints_pass.cpp",
+        "src/compiler/borrow_checker.cpp",
+        "src/compiler/container_constraint_pass.cpp",
+        "src/compiler/uses_enforcement_pass.cpp",
+        "src/compiler/cycle_detection_pass.cpp",
+        "src/compiler/elvis_type_checker_pass.cpp",
+        "src/compiler/error_propagation_pass.cpp",
+        "src/compiler/force_unwrap_pass.cpp",
+        "src/compiler/move_tracking_pass.cpp",
+        "src/compiler/mutability_checker_pass.cpp",
+        "src/compiler/mutability_enforcement_pass.cpp",
+        "src/compiler/mutability_qualifier_pass.cpp",
+        "src/compiler/ownership_metadata.cpp",
+        "src/compiler/param_mutability_checker_pass.cpp",
+        "src/compiler/safe_chaining_pass.cpp",
+        "src/compiler/safe_return_pass.cpp",
+        "src/compiler/trait_var_fnc_checker_pass.cpp",
+        "src/macro/ast_abort.cpp",
+        "src/macro/blueprint.cpp",
+        "src/macro/macro.cpp",
+    ],
+    hdrs = [
+        "include/meld/compat/visit.hpp",
+        "include/meld/compiler/ast_to_ir.hpp",
+        "include/meld/compiler/bytecode_generator.hpp",
+        "include/meld/compiler/codegen.hpp",
+        "include/meld/compiler/jvm_backend.hpp",
+        "include/meld/compiler/cpp_backend.hpp",
+        "include/meld/compiler/wasm_backend.hpp",
+        "include/meld/compiler/rust_backend.hpp",
+        "include/meld/compiler/ir.hpp",
+        "include/meld/compiler/ir_optimization.hpp",
+        "include/meld/compiler/type_checker.hpp",
+        "include/meld/compiler/refinement_checker.hpp",
+        "include/meld/compiler/contract_checker.hpp",
+        "include/meld/compiler/ast_printer.hpp",
+        "include/meld/compiler/cap.hpp",
+        "include/meld/compiler/micro_test_engine.hpp",
+        "include/meld/compiler/compiler.hpp",
+        "include/meld/runtime/flight_recorder.hpp",
+        "include/meld/compiler/mcp_generator.hpp",
+        "include/meld/compiler/effect_checker.hpp",
+        "include/meld/compiler/annotation_persister.hpp",
+        "include/meld/compiler/ide_integration.hpp",
+        "include/meld/ide/flow_visualizer.hpp",
+        "include/meld/ide/trust_heatmap.hpp",
+        "include/meld/compiler/hold_type_inference_pass.hpp",
+        "include/meld/compiler/view_access_pass.hpp",
+        "include/meld/compiler/ownership_transpiler.hpp",
+        "include/meld/compiler/ownership_ffi.hpp",
+        "include/meld/compiler/module_definition.hpp",
+        "include/meld/compiler/module_resolver.hpp",
+        "include/meld/types/type_registry.hpp",
+        "include/meld/types/anonymous_types.hpp",
+        "include/meld/types/refinement.hpp",
+        "include/meld/compiler/backend_lowering_pass.hpp",
+        "include/meld/compiler/intrinsic_resolution_pass.hpp",
+        "include/meld/compiler/advisory_diagnostics_pass.hpp",
+        "include/meld/compiler/migration_hints_pass.hpp",
+        "include/meld/api/semantic_graph.hpp",
+        "include/meld/api/meld_binary.hpp",
+        "include/meld/api/semantic_graph_api.hpp",
+        "include/meld/api/asg_builder.hpp",
+        "include/meld/api/holographic_view.hpp",
+        "include/meld/compiler/borrow_checker.hpp",
+        "include/meld/compiler/container_constraint_pass.hpp",
+        "include/meld/compiler/uses_enforcement_pass.hpp",
+        "include/meld/compiler/cycle_detection_pass.hpp",
+        "include/meld/compiler/elvis_type_checker_pass.hpp",
+        "include/meld/compiler/error_propagation_pass.hpp",
+        "include/meld/compiler/force_unwrap_pass.hpp",
+        "include/meld/compiler/move_tracking_pass.hpp",
+        "include/meld/compiler/mutability_checker_pass.hpp",
+        "include/meld/compiler/mutability_enforcement_pass.hpp",
+        "include/meld/compiler/mutability_qualifier_pass.hpp",
+        "include/meld/compiler/ownership_metadata.hpp",
+        "include/meld/compiler/param_mutability_checker_pass.hpp",
+        "include/meld/compiler/safe_chaining_pass.hpp",
+        "include/meld/compiler/safe_return_pass.hpp",
+        "include/meld/compiler/trait_var_fnc_checker_pass.hpp",
+        "include/meld/macro/ast_abort.hpp",
+        "include/meld/macro/blueprint.hpp",
+        "include/meld/macro/macro.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":mms",
+        ":parser",
+        ":provenance",
+        ":ai",
+        ":effects",
+        ":types",
+        "@boost.spirit",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# Effects library - Effect system
+cc_library(
+    name = "effects",
+    srcs = [
+        "src/effects/effect_types.cpp",
+        "src/effects/builtin_effects.cpp",
+        "src/effects/effect_checker.cpp",
+        "src/effects/effect_firewall.cpp",
+        "src/effects/agent_test_mode.cpp",
+    ],
+    hdrs = [
+        "include/meld/effects/effect.hpp",
+        "include/meld/effects/effect_types.hpp",
+        "include/meld/effects/builtin_effects.hpp",
+        "include/meld/effects/effect_checker.hpp",
+        "include/meld/effects/effect_firewall.hpp",
+        "include/meld/effects/agent_test_mode.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@boost.spirit",
+    ],
+)
+
+
+# Provenance library - Code provenance tracking and trust management
+cc_library(
+    name = "provenance",
+    srcs = [
+        "src/provenance/provenance.cpp",
+        "src/provenance/ai_provenance.cpp",
+        "src/parser/provenance_parser.cpp",
+        "src/verification/provenance_verification.cpp",
+    ],
+    hdrs = [
+        "include/meld/provenance/provenance.hpp",
+        "include/meld/provenance/ai_provenance.hpp",
+        "include/meld/parser/provenance_parser.hpp",
+        "include/meld/verification/provenance_verification.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@boost.spirit",
+    ],
+)
+
+# AI library - Shadow history and AI provenance tracking
+cc_library(
+    name = "ai",
+    srcs = [
+        "src/provenance/shadow_history.cpp",
+    ],
+    hdrs = [
+        "include/meld/provenance/shadow_history.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        "@boost.spirit",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# Main executable
+cc_binary(
+    name = "meld",
+    srcs = ["src/main.cpp"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":types",
+        ":parser",
+        ":macro",
+        ":stdlib",
+        ":serialization",
+        ":compiler",
+        ":async",
+        ":effects",
+    ],
+)
+
+# MCP CLI executable with --target=mcp support
+cc_binary(
+    name = "meld_cli",
+    srcs = ["src/meld_cli.cpp"],
+    deps = [
+        ":compiler",
+        ":macro",
+        ":parser",
+        ":kernel",
+        ":meta",
+    ],
+)
+
+# Public API library - main interface for other packages
+cc_library(
+    name = "api",
+    srcs = [
+        "src/api/structural_search.cpp",
+        "src/api/holographic_view.cpp",
+        "src/api/holographic_extensions.cpp",
+        "src/api/compiler_api.cpp",
+        "src/api/semantic_graph.cpp",
+        "src/api/semantic_graph_api.cpp",
+        "src/api/asg_builder.cpp",
+        "src/api/meld_binary.cpp",
+    ],
+    hdrs = [
+        "include/meld/api/compiler_api.hpp",
+        "include/meld/api/parser_api.hpp", 
+        "include/meld/api/runtime_api.hpp",
+        "include/meld/api/structural_search.hpp",
+        "include/meld/api/holographic_view.hpp",
+        "include/meld/api/holographic_extensions.hpp",
+        "include/meld/api/semantic_graph.hpp",
+        "include/meld/api/semantic_graph_api.hpp",
+        "include/meld/api/asg_builder.hpp",
+        "include/meld/api/meld_binary.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":compiler",
+        ":parser",
+        ":kernel",
+        ":meta",
+        ":provenance",
+        "@boost.spirit",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Comprehensive library target that includes all components
+cc_library(
+    name = "meld_lang",
+    deps = [
+        ":kernel",
+        ":meta",
+        ":trait_dispatch",
+        ":types",
+        ":parser",
+        ":macro",
+        ":stdlib",
+        ":serialization",
+        ":compiler",
+        ":async",
+        ":effects",
+        ":provenance",
+        ":ai",
+        ":runtime",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Core libraries with specific visibility for inter-package use
+cc_library(
+    name = "core",
+    deps = [
+        ":kernel",
+        ":meta",
+        ":types",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Language processing libraries for tools
+cc_library(
+    name = "language_tools",
+    deps = [
+        ":parser",
+        ":compiler",
+        ":stdlib",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Test targets
+# All tests are grouped by component for better organization
+
+# Kernel tests
+cc_test(
+    name = "kernel_tests",
+    srcs = [
+        "tests/kernel/primitives_test.cpp",
+        "tests/kernel/metadata_test.cpp",
+        "tests/kernel/continuation_test.cpp",
+        "tests/kernel/control_flow_test.cpp",
+        "tests/kernel/dispatch_test.cpp",
+        "tests/kernel/operators_test.cpp",
+        "tests/kernel/rtti_test.cpp",
+        "tests/kernel/dynamic_method_test.cpp",
+        "tests/kernel/partial_application_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":trait_dispatch",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Trait dispatch tests
+cc_test(
+    name = "trait_dispatch_tests",
+    srcs = [
+        "tests/kernel/trait_dispatch_test.cpp",
+    ],
+    deps = [
+        ":trait_dispatch",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Meta tests
+cc_test(
+    name = "meta_tests",
+    srcs = [
+        "tests/meta/metatype_test.cpp",
+        "tests/meta/type_registration_test.cpp",
+        "tests/meta/reflection_test.cpp",
+        "tests/meta/type_projections_test.cpp",
+        "tests/meta/dynamic_type_test.cpp",
+        "tests/meta/property_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":stdlib",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)# Types tests
+cc_test(
+    name = "types_tests",
+    srcs = [
+        "tests/types/instance_test.cpp",
+        "tests/types/nullable_test.cpp",
+        "tests/types/dynamic_property_test.cpp",
+        "tests/types/generics_test.cpp",
+        "tests/types/typealias_test.cpp",
+        "tests/types/memory_test.cpp",
+        "tests/types/copyable_test.cpp",
+        "tests/types/union_intersection_test.cpp",
+        "tests/types/collection_test.cpp",
+        "tests/types/lazy_sequence_test.cpp",
+        "tests/types/persistent_list_test.cpp",
+        "tests/types/persistent_map_test.cpp",
+        "tests/types/persistent_set_test.cpp",
+        "tests/types/mutable_list_test.cpp",
+        "tests/types/mutable_map_test.cpp",
+        "tests/types/mutable_set_test.cpp",
+        "tests/types/anonymous_types_test.cpp",
+        "tests/types/collection_literal_inference_test.cpp",
+        "tests/types/result_test.cpp",
+        "tests/types/result_property_test.cpp",
+        "tests/types/property_accessor_test.cpp",
+        "tests/types/property_access_test.cpp",
+        "tests/types/property_basic_test.cpp",
+        "tests/types/property_custom_accessors_test.cpp",
+        "tests/types/property_delegate_test.cpp",
+        "tests/types/property_delegation_test.cpp",
+        "tests/types/parallel_execution_test.cpp",
+        "tests/types/refinement_test.cpp",
+        "tests/types/refinement_runtime_test.cpp",
+        "tests/types/refinement_composition_test.cpp",
+        "tests/types/unsigned_type_safety_property_test.cpp",
+        "tests/types/numeric_wrapper_transpilation_property_test.cpp",
+        "tests/types/char_unicode_validity_property_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":types",
+        "//meld-test:testing",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Parser tests
+cc_test(
+    name = "parser_tests",
+    srcs = [
+        "tests/parser/lexer_test.cpp",
+        "tests/parser/parser_test.cpp",
+        "tests/parser/tuple_test.cpp",
+        "tests/parser/namespace_test.cpp",
+        "tests/parser/initialization_test.cpp",
+        "tests/parser/function_signature_test.cpp",
+        "tests/parser/lambda_test.cpp",
+        "tests/parser/extension_test.cpp",
+        # "tests/parser/extension_method_test.cpp",  # Pre-existing broken: uses removed tokenize() API
+        "tests/parser/pipeline_test.cpp",
+        # "tests/parser/pipeline_operator_test.cpp",  # Pre-existing broken: uses removed tokenize() API and old Parser API
+        # "tests/parser/custom_operator_test.cpp",  # Pre-existing broken: uses std::get/holds_alternative on x3::variant
+        "tests/parser/ellipsis_test.cpp",
+        # "tests/parser/query_test.cpp",  # Pre-existing broken: direct expression construction incompatible with x3::variant on MSVC
+        # "tests/parser/typealias_syntax_test.cpp",  # Pre-existing broken: uses old Parser(string) constructor and parser.parse() API
+        "tests/parser/refinement_syntax_test.cpp",
+        # "tests/parser/effect_imposes_test.cpp",  # Pre-existing broken: uses old Parser(source) constructor and parser.parse() API
+        # "tests/parser/effect_syntax_test.cpp",  # Pre-existing broken: uses old Parser(source) constructor and parser.parse() API
+        # "tests/parser/effects_clause_test.cpp",  # Pre-existing broken: uses old Parser(source) constructor and parser.parse() API
+        # "tests/parser/currying_syntax_test.cpp",  # Pre-existing broken: uses old Lexer.tokenize() returning optional and Parser(tokens) API
+        "tests/parser/forall_parsing_test.cpp",
+        # "tests/parser/test_deprecation_warnings.cpp",  # Pre-existing broken: standalone (non-gtest) test with own main(), uses old Lexer API
+        # "tests/parser/strict_no_keywords_test.cpp",  # Defines own main() conflicting with gtest_main; needs main() removed to re-enable
+        "tests/parser/imp_keyword_test.cpp",
+        "tests/parser/explicit_val_test.cpp",
+        "tests/parser/mandatory_val_var_test.cpp",
+        "tests/parser/mutating_method_test.cpp",
+        "tests/parser/ast_parent_pointer_test.cpp",
+        "tests/parser/ast_mutation_test.cpp",
+        "tests/parser/add_method_member_test.cpp",
+        "tests/parser/test_generic_mutability_qualifier.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Explicit val parser property tests (Property 1: Explicit val sets immutable with tracking flag)
+cc_test(
+    name = "explicit_val_property_tests",
+    srcs = [
+        "tests/parser/explicit_val_property_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# AST parent pointer property tests (Property 67: AST Parent Pointer Invariant)
+cc_test(
+    name = "ast_parent_pointer_property_tests",
+    srcs = [
+        "tests/parser/ast_parent_pointer_property_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# add_method() member API property tests (Requirements: 25B.13)
+cc_test(
+    name = "add_method_member_property_tests",
+    srcs = [
+        "tests/parser/add_method_member_property_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Interpolation modifier tests (Task 55 — __interpolate-debug__, __interpolate-pretty__)
+cc_test(
+    name = "interpolation_modifier_tests",
+    srcs = [
+        "tests/parser/interpolation_modifier_test.cpp",
+    ],
+    deps = [
+        "//meld-interpreter:interpreter",
+        ":kernel",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Interpolation modifier property-based tests (Task 55.8)
+cc_test(
+    name = "interpolation_modifier_property_tests",
+    srcs = [
+        "tests/parser/interpolation_modifier_property_test.cpp",
+    ],
+    deps = [
+        "//meld-interpreter:interpreter",
+        ":kernel",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Interpolation modifier edge case tests (Task 55.9)
+cc_test(
+    name = "interpolation_modifier_edge_tests",
+    srcs = [
+        "tests/parser/interpolation_modifier_edge_test.cpp",
+    ],
+    deps = [
+        "//meld-interpreter:interpreter",
+        ":kernel",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Handle syntax and anonymous implementation block tests (Task 54.9)
+cc_test(
+    name = "handle_syntax_tests",
+    srcs = [
+        "tests/parser/handle_syntax_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Format decorator tests (Task 55.4, 55.5 — @debug, @stringify)
+cc_test(
+    name = "format_decorator_tests",
+    srcs = [
+        "tests/macro/format_decorators_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":macro",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Explicit val type checker property tests (Properties 4, 5)
+cc_test(
+    name = "explicit_val_type_checker_property_tests",
+    srcs = [
+        "tests/compiler/explicit_val_type_checker_property_test.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Explicit val compiler parser property tests (Property 11)
+cc_test(
+    name = "explicit_val_compiler_parser_property_tests",
+    srcs = [
+        "tests/compiler/explicit_val_compiler_parser_property_test.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":api",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Mandatory val/var parser property tests (Properties 1-6)
+cc_test(
+    name = "mandatory_val_var_property_tests",
+    srcs = [
+        "tests/parser/mandatory_val_var_property_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Mandatory val/var compiler property tests (Properties 7-9)
+cc_test(
+    name = "mandatory_val_var_compiler_property_tests",
+    srcs = [
+        "tests/compiler/mandatory_val_var_compiler_property_test.cpp",
+    ],
+    deps = [
+        ":api",
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Macro tests
+cc_test(
+    name = "macro_tests",
+    srcs = [
+        "tests/macro/macro_test.cpp",
+        "tests/macro/bootstrap_test.cpp",
+        "tests/macro/core_bootstrap_macros_test.cpp",
+        "tests/macro/decorator_test.cpp",
+        "tests/macro/property_decorators_test.cpp",
+        "tests/macro/method_decorators_test.cpp",
+        "tests/macro/constructor_decorators_test.cpp",
+        "tests/macro/composite_decorators_test.cpp",
+        "tests/macro/builder_decorator_test.cpp",
+        "tests/macro/decorators_integration_test.cpp",
+        "tests/macro/blueprint_test.cpp",
+        "tests/macro/blueprint_integration_test.cpp",
+        "tests/macro/extern_macro_test.cpp",
+        "tests/macro/handle_macro_test.cpp",
+        "tests/macro/operator_macro_test.cpp",
+        # "tests/macro/ast_quote_test.cpp",  # Moved to separate ast_quote_tests target (macro target has pre-existing decorator.cpp build failure)
+    ],
+    deps = [
+        ":kernel",
+        ":api",
+        ":meta",
+        ":parser",
+        ":macro",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# AST Quote tests (Req 2.9: ast.quote quasiquoting)
+cc_test(
+    name = "ast_quote_tests",
+    srcs = [
+        "tests/macro/ast_quote_test.cpp",
+    ],
+    deps = [
+        ":ast_quote",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# AST Quote property tests (Property 68: ast.quote Round Trip)
+cc_test(
+    name = "ast_quote_property_tests",
+    srcs = [
+        "tests/macro/ast_quote_property_test.cpp",
+    ],
+    deps = [
+        ":ast_quote",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# AST Abort tests (Req 2.10: ast.abort structured error reporting)
+cc_test(
+    name = "ast_abort_tests",
+    srcs = [
+        "tests/macro/ast_abort_test.cpp",
+    ],
+    deps = [
+        ":ast_abort",
+        ":api",
+        ":compiler",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# Parent access pattern tests (Req 2.11: node.parent() ?: ast.abort(...))
+cc_test(
+    name = "parent_access_tests",
+    srcs = [
+        "tests/macro/parent_access_test.cpp",
+    ],
+    deps = [
+        ":ast_abort",
+        ":api",
+        ":macro",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Standard library tests
+cc_test(
+    name = "stdlib_tests",
+    srcs = [
+        "tests/stdlib/pattern_matcher_test.cpp",
+        "tests/stdlib/regex_test.cpp",
+        "tests/stdlib/test_effects_library.cpp",
+        "tests/stdlib/test_handler_stack_isolation.cpp",
+        "tests/stdlib/test_handler_cleanup_exception.cpp",
+        "tests/stdlib/system_test.cpp",
+        "tests/stdlib/exceptions_test.cpp",
+        "tests/stdlib/test_async_await.cpp",
+        "tests/stdlib/test_generator.cpp",
+        "tests/stdlib/flow_runtime_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":stdlib",
+        ":effects",
+        ":compiler",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Serialization tests
+cc_test(
+    name = "serialization_tests",
+    srcs = [
+        "tests/serialization/json_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":types",
+        ":serialization",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Compiler tests
+cc_test(
+    name = "compiler_tests",
+    srcs = [
+        "tests/compiler/type_checker_test.cpp",
+        "tests/compiler/generics_integration_test.cpp",
+        "tests/compiler/typealias_checker_test.cpp",
+        "tests/compiler/refinement_checker_test.cpp",
+        "tests/compiler/contract_checker_test.cpp",
+        "tests/compiler/cap_test.cpp",
+        "tests/compiler/micro_test_test.cpp",
+        "tests/compiler/micro_test_integration_test.cpp",
+        "tests/compiler/mcp_generator_test.cpp",
+        "tests/compiler/mcp_integration_test.cpp",
+        "tests/compiler/effect_checker_test.cpp",
+        "tests/compiler/effect_soundness_property_test.cpp",
+        "tests/compiler/test_automatic_effect_inference.cpp",
+        "tests/compiler/test_effect_inference_integration.cpp",
+        "tests/compiler/test_manual_annotation_constraints.cpp",
+        "tests/compiler/test_annotation_persistence.cpp",
+        "tests/compiler/test_ide_integration.cpp",
+        "tests/compiler/trust_level_enforcement_test.cpp",
+        "tests/compiler/jvm_backend_test.cpp",
+        "tests/compiler/cpp_backend_test.cpp",
+        "tests/compiler/wasm_backend_test.cpp",
+        "tests/compiler/ir_optimization_test.cpp",
+        "tests/compiler/module_definition_test.cpp",
+        "tests/compiler/module_isolation_property_test.cpp",
+        "tests/compiler/import_form_property_test.cpp",
+        "tests/compiler/test_effect_diagnostic_provider.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":api",
+        ":meta",
+        ":parser",
+        ":compiler",
+        ":effects",
+        ":macro",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Ownership transpiler tests
+cc_test(
+    name = "ownership_transpiler_tests",
+    srcs = [
+        "tests/test_ownership_transpiler.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Hold[T]/View[T] type inference pass tests (Creator Rule + Guest Rule)
+cc_test(
+    name = "hold_type_inference_pass_tests",
+    srcs = [
+        "tests/compiler/test_hold_type_inference_pass.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# IDE tenancy ghost text tests (Req 175)
+cc_test(
+    name = "ide_tenancy_hints_tests",
+    srcs = [
+        "tests/compiler/test_ide_tenancy_hints.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Mutability qualifier default resolution pass tests (Req 165.2)
+cc_test(
+    name = "mutability_qualifier_pass_tests",
+    srcs = [
+        "tests/compiler/test_mutability_qualifier_pass.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Mutability enforcement pass tests (Req 165.3, 165.4)
+cc_test(
+    name = "mutability_enforcement_pass_tests",
+    srcs = [
+        "tests/compiler/test_mutability_enforcement_pass.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Mutability qualifier property-based tests (Req 165.1-165.6)
+cc_test(
+    name = "mutability_qualifier_property_tests",
+    srcs = [
+        "tests/compiler/test_mutability_qualifier_property.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck",
+    ],
+)
+
+# Collection tenancy enforcement tests (Req 167.1-167.7)
+cc_test(
+    name = "collection_tenancy_tests",
+    srcs = [
+        "tests/compiler/test_collection_tenancy.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Ownership FFI tests
+cc_test(
+    name = "ownership_ffi_tests",
+    srcs = [
+        "tests/test_ownership_ffi.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# std.mem module tests — Own[T], Link[T], Storable trait, link(), move()
+cc_test(
+    name = "std_mem_tests",
+    srcs = [
+        "tests/std/test_mem.cpp",
+    ],
+    deps = [
+        ":types",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# std.mem Storable trait consistency property tests (Property 3)
+cc_test(
+    name = "std_mem_storable_property_tests",
+    srcs = [
+        "tests/std/test_mem_storable_property.cpp",
+    ],
+    deps = [
+        ":types",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Error handling property tests (Property 9: Explicit Error Management)
+cc_test(
+    name = "error_handling_property_tests",
+    srcs = [
+        "tests/types/error_handling_property_test.cpp",
+    ],
+    deps = [
+        ":types",
+        ":kernel",
+        ":meta",
+        "//meld-test:testing",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Interoperability property tests (Property 19: Cross-System Integration)
+cc_test(
+    name = "interoperability_property_tests",
+    srcs = [
+        "tests/test_interoperability_property.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":trait_dispatch",
+        ":kernel",
+        ":meta",
+        "//meld-test:testing",
+        "@googletest//:gtest",
+    ],
+)
+
+# Integration property tests (Task 16.3: Cross-feature integration validation)
+cc_test(
+    name = "integration_property_tests",
+    srcs = [
+        "tests/test_integration_property.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":trait_dispatch",
+        ":types",
+        ":macro",
+        ":provenance",
+        ":kernel",
+        ":meta",
+        "//meld-test:testing",
+        "@googletest//:gtest",
+    ],
+)
+
+# Kernel integration tests (Task 16.1: Integrate all systems with existing Meld kernel)
+cc_test(
+    name = "kernel_integration_tests",
+    srcs = [
+        "tests/test_kernel_integration.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":trait_dispatch",
+        ":types",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Metaprogramming property tests (Property 11: Provenance-Preserving Code Generation)
+cc_test(
+    name = "metaprogramming_property_tests",
+    srcs = [
+        "tests/test_metaprogramming_property.cpp",
+    ],
+    deps = [
+        ":macro",
+        ":provenance",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "//meld-test:testing",
+        "@googletest//:gtest",
+    ],
+)
+
+# Developer experience property tests (Property 14: Comprehensive Error Reporting)
+cc_test(
+    name = "developer_experience_property_tests",
+    srcs = [
+        "tests/test_developer_experience_property.cpp",
+    ],
+    deps = [
+        ":api",
+        ":compiler",
+        ":parser",
+        ":kernel",
+        ":meta",
+        "//meld-test:testing",
+        "@googletest//:gtest",
+    ],
+)
+
+# Backend lowering pass tests — Own[T]/Link[T]/move() C++ code generation (Task 10)
+cc_test(
+    name = "backend_lowering_pass_tests",
+    srcs = [
+        "tests/compiler/test_backend_lowering_pass.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":types",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Backend lowering property tests — Own[T] strong_count and Link[T] weak_count invariants (Task 10.3)
+cc_test(
+    name = "backend_lowering_property_tests",
+    srcs = [
+        "tests/compiler/test_backend_lowering_property.cpp",
+    ],
+    deps = [
+        ":types",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Migration hints pass tests — Own→Hold, Link→View, link()→view() migration diagnostics (Task 58.3)
+cc_test(
+    name = "migration_hints_pass_tests",
+    srcs = [
+        "tests/compiler/test_migration_hints_pass.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Link access pass tests — View[T] access enforcement with ?., if val, match (Task 58.5)
+cc_test(
+    name = "view_access_pass_tests",
+    srcs = [
+        "tests/compiler/test_view_access_pass.cpp",
+    ],
+    deps = [
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":parser",
+        ":stdlib",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Safe-chaining operator pass library — ?. ?[] ?() validation (Task 47.1)
+cc_library(
+    name = "safe_chaining_pass",
+    srcs = [
+        "src/compiler/safe_chaining_pass.cpp",
+    ],
+    hdrs = [
+        "include/meld/compiler/safe_chaining_pass.hpp",
+        "include/meld/compat/visit.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":parser",
+        ":kernel",
+        ":meta",
+        "@boost.spirit",
+    ],
+)
+
+# Safe-chaining operator pass tests — ?. ?[] ?() validation (Task 47.1)
+cc_test(
+    name = "safe_chaining_pass_tests",
+    srcs = [
+        "tests/compiler/test_safe_chaining_pass.cpp",
+    ],
+    deps = [
+        ":safe_chaining_pass",
+        ":parser",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Safe-return operator pass library — postfix ? validation (Task 47.2)
+cc_library(
+    name = "safe_return_pass",
+    srcs = [
+        "src/compiler/safe_return_pass.cpp",
+    ],
+    hdrs = [
+        "include/meld/compiler/safe_return_pass.hpp",
+        "include/meld/compat/visit.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":parser",
+        ":kernel",
+        ":meta",
+        "@boost.spirit",
+    ],
+)
+
+# Safe-return operator pass tests — postfix ? validation (Task 47.2)
+cc_test(
+    name = "safe_return_pass_tests",
+    srcs = [
+        "tests/compiler/test_safe_return_pass.cpp",
+    ],
+    deps = [
+        ":safe_return_pass",
+        ":parser",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Error-propagation operator pass library — postfix ?! validation (Task 47.3)
+cc_library(
+    name = "error_propagation_pass",
+    srcs = [
+        "src/compiler/error_propagation_pass.cpp",
+    ],
+    hdrs = [
+        "include/meld/compiler/error_propagation_pass.hpp",
+        "include/meld/compat/visit.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":parser",
+        ":kernel",
+        ":meta",
+        "@boost.spirit",
+    ],
+)
+
+# Error-propagation operator pass tests — postfix ?! validation (Task 47.3)
+cc_test(
+    name = "error_propagation_pass_tests",
+    srcs = [
+        "tests/compiler/test_error_propagation_pass.cpp",
+    ],
+    deps = [
+        ":error_propagation_pass",
+        ":parser",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Force-unwrap / panic operator pass library — postfix !! validation (Task 47.4)
+cc_library(
+    name = "force_unwrap_pass",
+    srcs = [
+        "src/compiler/force_unwrap_pass.cpp",
+    ],
+    hdrs = [
+        "include/meld/compiler/force_unwrap_pass.hpp",
+        "include/meld/compat/visit.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":parser",
+        ":kernel",
+        ":meta",
+        "@boost.spirit",
+    ],
+)
+
+# Force-unwrap / panic operator pass tests — postfix !! validation (Task 47.4)
+cc_test(
+    name = "force_unwrap_pass_tests",
+    srcs = [
+        "tests/compiler/test_force_unwrap_pass.cpp",
+    ],
+    deps = [
+        ":force_unwrap_pass",
+        ":parser",
+        ":kernel",
+        ":meta",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Nil rejection tests — compile-time nil safety (Task 48.1, Req 14A-NIL.20, 14A-NIL.21)
+cc_test(
+    name = "nil_rejection_tests",
+    srcs = [
+        "tests/compiler/nil_rejection_test.cpp",
+    ],
+    deps = [
+        ":type_checker_lib",
+        ":kernel",
+        ":meta",
+        ":parser",
+        ":types",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "optional_distinction_tests",
+    srcs = [
+        "tests/compiler/optional_distinction_test.cpp",
+    ],
+    deps = [
+        ":type_checker_lib",
+        ":kernel",
+        ":meta",
+        ":parser",
+        ":types",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "narrowing_tests",
+    srcs = [
+        "tests/compiler/narrowing_test.cpp",
+    ],
+    deps = [
+        ":type_checker_lib",
+        ":kernel",
+        ":meta",
+        ":parser",
+        ":types",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "nil_safety_property_tests",
+    srcs = [
+        "tests/compiler/nil_safety_property_test.cpp",
+    ],
+    deps = [
+        ":type_checker_lib",
+        ":kernel",
+        ":meta",
+        ":parser",
+        ":types",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "anon_impl_tests",
+    srcs = [
+        "tests/compiler/anon_impl_test.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Type checker focused library — minimal deps for type checker tests
+cc_library(
+    name = "type_checker_lib",
+    srcs = [
+        "src/compiler/type_checker.cpp",
+        "src/compiler/contract_checker.cpp",
+    ],
+    hdrs = [
+        "include/meld/compiler/type_checker.hpp",
+        "include/meld/compiler/contract_checker.hpp",
+        "include/meld/compat/visit.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":parser",
+        ":types",
+        "@boost.spirit",
+    ],
+)
+
+# Effects tests
+cc_test(
+    name = "effects_tests",
+    srcs = [
+        "tests/effects/effect_test.cpp",
+        "tests/effects/effect_types_test.cpp",
+        "tests/effects/handler_execution_test.cpp",
+        "tests/effects/test_builtin_effects.cpp",
+    ],
+    deps = [
+        ":kernel",
+        ":meta",
+        ":effects",
+        ":stdlib",
+        "@googletest//:gtest",
+    ],
+)
+
+# API tests
+cc_test(
+    name = "api_tests",
+    srcs = [
+        "tests/api/structural_search_test.cpp",
+        "tests/api/structural_search_integration_test.cpp",
+        "tests/api/holographic_view_test.cpp",
+        "tests/api/semantic_graph_property_test.cpp",
+        "tests/api/data_flow_property_test.cpp",
+        "tests/api/meld_binary_provenance_test.cpp",
+    ],
+    deps = [
+        ":api",
+        ":parser",
+        ":compiler",
+        ":kernel",
+        ":meta",
+        ":provenance",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+    ],
+)
+
+# Testing library tests
+cc_test(
+    name = "testing_tests",
+    srcs = [
+        "tests/testing/generator_test.cpp",
+        "tests/testing/property_test_coverage_test.cpp",
+        "tests/testing/property_test_shrinking_test.cpp",
+        "tests/testing/property_test_effects_test.cpp",
+    ],
+    deps = [
+        "//meld-test:testing",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# IDE integration tests
+cc_test(
+    name = "ide_tests",
+    srcs = [
+        "tests/ide/flow_visualizer_test.cpp",
+        "tests/ide/trust_heatmap_test.cpp",
+        "tests/provenance/provenance_query_test.cpp",
+    ],
+    deps = [
+        ":parser",
+        ":kernel",
+        ":meta",
+        ":provenance",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Comprehensive test suite that runs all tests
+test_suite(
+    name = "all_tests",
+    tests = [
+        ":kernel_tests",
+        ":trait_dispatch_tests",
+        ":meta_tests",
+        ":types_tests",
+        ":parser_tests",
+        ":macro_tests",
+        ":stdlib_tests",
+        ":serialization_tests",
+        ":compiler_tests",
+        ":effects_tests",
+        ":api_tests",
+        ":testing_tests",
+        ":ide_tests",
+        ":kernel_integration_tests",
+    ],
+)
+# Example binaries
+# These demonstrate various features of the Meld language

@@ -1,0 +1,558 @@
+// std/async/scheduler.meld - poll-driven cooperative executor
+//
+// This replaces the old fiber sketch with a pull-based task frame. A task
+// advances only when tick-runtime polls it.
+
+imp kernel
+imp std.collections.flat_map
+imp std.async.atomic_queue
+imp std.async.core
+imp std.async.queue
+imp std.async.reactor
+
+struct TaskFrame {
+    val id: int
+    val slot: int
+    var worker-id: int
+    var generation: int
+    var state: string
+    var queued: bool
+    var released: bool
+    var pollable: any
+    var result: any
+    var error: any
+    var waiter: any
+}
+
+struct Worker {
+    val id: int
+    var local: RingQueue
+}
+
+struct WorkItem {
+    val found: bool
+    val task: any
+}
+
+struct Runtime {
+    val id: int
+    val reactor: Reactor
+    val budget-per-task: int
+    val task-capacity: int
+    var next-task-id: int
+    var workers: list
+    var global: AtomicQueue
+    var tasks: list
+    var task-slots: list
+    var free-slots: RingQueue
+    var next-task-slot: int
+    var live-task-count: int
+    var task-index: FlatMap
+    var ready: AtomicQueue
+    var completed: RingQueue
+}
+
+var runtime-counter = 0
+
+fnc next-runtime-id() -> int {
+    runtime-counter = runtime-counter + 1
+    rtn runtime-counter
+}
+
+fnc local-queue-capacity() -> int {
+    rtn 256
+}
+
+fnc global-queue-capacity() -> int {
+    rtn 8192
+}
+
+fnc default-task-capacity() -> int {
+    rtn 8192
+}
+
+fnc normalize-task-capacity(task-capacity: int) -> int {
+    rtn when(task-capacity <= 0).then({ rtn default-task-capacity() }).else({ rtn task-capacity })
+}
+
+fnc create-worker-list(count: int, index: int, out: list) -> list {
+    rtn when(index >= count).then({
+        rtn out
+    }).else({
+        rtn create-worker-list(count, index + 1, arr-push(out, Worker {
+            id = index,
+            local = create-ring-queue(local-queue-capacity())
+        }))
+    })
+}
+
+fnc normalize-worker-count(worker-count: int) -> int {
+    rtn when(worker-count <= 0).then({ rtn 1 }).else({ rtn worker-count })
+}
+
+fnc create-runtime-with-capacity(worker-count: int, requested-task-capacity: int) -> Runtime {
+    val workers = normalize-worker-count(worker-count)
+    val tasks = normalize-task-capacity(requested-task-capacity)
+    val slots = arr-new(tasks, nil)
+    rtn Runtime {
+        id = next-runtime-id(),
+        reactor = create-reactor(),
+        budget-per-task = 128,
+        task-capacity = tasks,
+        next-task-id = 1,
+        workers = create-worker-list(workers, 0, []),
+        global = create-atomic-queue(global-queue-capacity()),
+        tasks = slots,
+        task-slots = slots,
+        free-slots = create-ring-queue(tasks),
+        next-task-slot = 0,
+        live-task-count = 0,
+        task-index = flat-map-create(tasks),
+        ready = create-atomic-queue(global-queue-capacity()),
+        completed = create-ring-queue(global-queue-capacity())
+    }
+}
+
+fnc create-runtime-with-workers(worker-count: int) -> Runtime {
+    rtn create-runtime-with-capacity(worker-count, default-task-capacity())
+}
+
+fnc create-runtime() -> Runtime {
+    rtn create-runtime-with-workers(1)
+}
+
+fnc create-scheduler() -> Runtime {
+    rtn create-runtime()
+}
+
+fnc empty-work() -> WorkItem {
+    rtn WorkItem { found = false, task = nil }
+}
+
+fnc work-item(task: TaskFrame) -> WorkItem {
+    rtn WorkItem { found = true, task = task }
+}
+
+fnc worker-at(runtime: Runtime, worker-id: int) -> any {
+    rtn when(worker-id < 0 || worker-id >= len(runtime.workers)).then({
+        rtn nil
+    }).else({
+        rtn runtime.workers[worker-id]
+    })
+}
+
+fnc push-queued-task(queue: RingQueue, task: TaskFrame) -> bool {
+    val pushed = ring-push(queue, task)
+    when(pushed).then({
+        task.queued = true
+    })
+    rtn pushed
+}
+
+fnc push-queued-atomic(queue: AtomicQueue, task: TaskFrame) -> bool {
+    val pushed = atomic-queue-push(queue, task)
+    when(pushed).then({
+        task.queued = true
+    })
+    rtn pushed
+}
+
+fnc push-global-queue(runtime: Runtime, task: TaskFrame) -> bool {
+    val pushed = push-queued-atomic(runtime.global, task)
+    rtn when(pushed).then({
+        rtn true
+    }).else({
+        rtn push-queued-atomic(runtime.ready, task)
+    })
+}
+
+fnc spill-local-half-to-global(local: RingQueue, global: AtomicQueue) -> int {
+    val target = ring-steal-count(local)
+    var moved = 0
+    var done = false
+
+    loop-while({ rtn done == false && moved < target && ring-empty(local) == false }, {
+        val popped = ring-pop(local)
+        when(popped.found).then({
+            val pushed = atomic-queue-push(global, popped.value)
+            when(pushed).then({
+                moved = moved + 1
+            }).else({
+                ring-push(local, popped.value)
+                done = true
+            })
+        }).else({
+            done = true
+        })
+    })
+
+    rtn moved
+}
+
+fnc schedule-local(runtime: Runtime, worker-id: int, task: TaskFrame) -> () {
+    when(task.state != "completed" && task.queued == false).then({
+        val worker = worker-at(runtime, worker-id)
+        when(is-nil(worker)).then({
+            push-global-queue(runtime, task)
+        }).else({
+            val pushed = push-queued-task(worker.local, task)
+            when(pushed == false).then({
+                spill-local-half-to-global(worker.local, runtime.global)
+                val retry = push-queued-task(worker.local, task)
+                when(retry == false).then({
+                    push-global-queue(runtime, task)
+                })
+            })
+        })
+    })
+}
+
+fnc schedule-global(runtime: Runtime, task: TaskFrame) -> () {
+    when(task.state != "completed" && task.queued == false).then({
+        push-global-queue(runtime, task)
+    })
+}
+
+fnc pop-worker-local(worker: Worker) -> WorkItem {
+    var item = empty-work()
+    var done = false
+
+    loop-while({ rtn done == false && ring-empty(worker.local) == false }, {
+        val popped = ring-pop(worker.local)
+        when(popped.found).then({
+            val task = popped.value
+            task.queued = false
+            when(task.state != "completed").then({
+                item = work-item(task)
+                done = true
+            })
+        })
+    })
+
+    rtn item
+}
+
+fnc pop-global(runtime: Runtime) -> WorkItem {
+    var item = empty-work()
+    var global-done = false
+
+    loop-while({ rtn item.found == false && global-done == false }, {
+        val popped = atomic-queue-pop(runtime.global)
+        when(popped.found).then({
+            val task = popped.value
+            task.queued = false
+            when(task.state != "completed").then({
+                item = work-item(task)
+            })
+        }).else({
+            global-done = true
+        })
+    })
+
+    var ready-done = false
+    loop-while({ rtn item.found == false && ready-done == false }, {
+        val popped = atomic-queue-pop(runtime.ready)
+        when(popped.found).then({
+            val task = popped.value
+            task.queued = false
+            when(task.state != "completed").then({
+                item = work-item(task)
+            })
+        }).else({
+            ready-done = true
+        })
+    })
+
+    rtn item
+}
+
+fnc steal-from-workers(runtime: Runtime, worker-id: int, index: int) -> WorkItem {
+    rtn when(index >= len(runtime.workers)).then({
+        rtn empty-work()
+    }).else({
+        val peer = runtime.workers[index]
+        rtn when(peer.id == worker-id).then({
+            rtn steal-from-workers(runtime, worker-id, index + 1)
+        }).else({
+            val worker = worker-at(runtime, worker-id)
+            rtn when(is-nil(worker)).then({
+                rtn steal-from-workers(runtime, worker-id, index + 1)
+            }).else({
+                ring-steal-half(peer.local, worker.local)
+                val stolen = pop-worker-local(worker)
+                rtn when(stolen.found).then({
+                    rtn stolen
+                }).else({
+                    rtn steal-from-workers(runtime, worker-id, index + 1)
+                })
+            })
+        })
+    })
+}
+
+fnc dequeue-work(runtime: Runtime, worker-id: int) -> WorkItem {
+    val worker = worker-at(runtime, worker-id)
+    val local = when(is-nil(worker)).then({ rtn empty-work() }).else({
+        rtn pop-worker-local(worker)
+    })
+
+    rtn when(local.found).then({
+        rtn local
+    }).else({
+        val stolen = steal-from-workers(runtime, worker-id, 0)
+        rtn when(stolen.found).then({
+            rtn stolen
+        }).else({
+            rtn pop-global(runtime)
+        })
+    })
+}
+
+fnc make-waker(runtime: Runtime, task: TaskFrame) -> Waker {
+    rtn Waker {
+        scheduler-id = runtime.id,
+        task-id = task.id,
+        generation = task.generation
+    }
+}
+
+fnc runtime-task-free-slots(runtime: Runtime) -> int {
+    rtn runtime.task-capacity - runtime.live-task-count
+}
+
+fnc runtime-live-tasks(runtime: Runtime) -> int {
+    rtn runtime.live-task-count
+}
+
+fnc runtime-completed-count(runtime: Runtime) -> int {
+    rtn ring-size(runtime.completed)
+}
+
+fnc allocate-task-slot(runtime: Runtime) -> QueuePop {
+    val recycled = ring-pop(runtime.free-slots)
+    rtn when(recycled.found).then({
+        rtn recycled
+    }).else({
+        rtn when(runtime.next-task-slot < runtime.task-capacity).then({
+            val slot = runtime.next-task-slot
+            runtime.next-task-slot = runtime.next-task-slot + 1
+            rtn ring-pop-value(slot)
+        }).else({
+            rtn ring-pop-empty()
+        })
+    })
+}
+
+fnc full-task-frame(runtime: Runtime, worker-id: int, work: any) -> TaskFrame {
+    val task = TaskFrame {
+        id = runtime.next-task-id,
+        slot = -1,
+        worker-id = worker-id,
+        generation = 0,
+        state = "completed",
+        queued = false,
+        released = true,
+        pollable = work,
+        result = nil,
+        error = "task arena full",
+        waiter = nil
+    }
+
+    runtime.next-task-id = runtime.next-task-id + 1
+    ring-push(runtime.completed, task)
+    rtn task
+}
+
+fnc release-task-frame(runtime: Runtime, task: TaskFrame) -> () {
+    when(task.released == false).then({
+        task.released = true
+        cleanup-pollable(task.pollable)
+        flat-map-remove(runtime.task-index, task.id)
+        when(task.slot >= 0).then({
+            arr-set-mut(runtime.task-slots, task.slot, nil)
+            ring-push(runtime.free-slots, task.slot)
+            runtime.live-task-count = runtime.live-task-count - 1
+        })
+    })
+}
+
+fnc spawn-on-worker[T](runtime: Runtime, worker-id: int, work: Pollable[T]) -> TaskFrame {
+    val slot = allocate-task-slot(runtime)
+    rtn when(slot.found == false).then({
+        rtn full-task-frame(runtime, worker-id, work)
+    }).else({
+        val task = TaskFrame {
+            id = runtime.next-task-id,
+            slot = slot.value,
+            worker-id = worker-id,
+            generation = 0,
+            state = "ready",
+            queued = false,
+            released = false,
+            pollable = work,
+            result = nil,
+            error = nil,
+            waiter = nil
+        }
+
+        runtime.next-task-id = runtime.next-task-id + 1
+        runtime.live-task-count = runtime.live-task-count + 1
+        arr-set-mut(runtime.task-slots, task.slot, task)
+        flat-map-put(runtime.task-index, task.id, task)
+        schedule-local(runtime, worker-id, task)
+        rtn task
+    })
+}
+
+fnc spawn-pollable[T](runtime: Runtime, work: Pollable[T]) -> TaskFrame {
+    rtn spawn-on-worker(runtime, 0, work)
+}
+
+fnc find-task(runtime: Runtime, task-id: int) -> any {
+    val found = flat-map-get(runtime.task-index, task-id)
+    rtn when(found.found).then({ rtn found.value }).else({ rtn nil })
+}
+
+fnc enqueue-ready(runtime: Runtime, task: TaskFrame) -> () {
+    when(task.state != "completed").then({
+        task.state = "ready"
+        schedule-local(runtime, task.worker-id, task)
+    })
+}
+
+fnc task-add-waiter(task: TaskFrame, waker: Waker) -> () {
+    when(task.state != "completed").then({
+        task.waiter = waker
+    })
+}
+
+fnc task-waiter-count(task: TaskFrame) -> int {
+    rtn when(is-some(task.waiter)).then({ rtn 1 }).else({ rtn 0 })
+}
+
+fnc wake-task-waiters(task: TaskFrame) -> () {
+    when(is-some(task.waiter)).then({
+        val waiter = task.waiter
+        task.waiter = nil
+        wake-task(waiter)
+    })
+}
+
+fnc complete-task(runtime: Runtime, task: TaskFrame, result: any) -> () {
+    task.state = "completed"
+    task.queued = false
+    task.result = result
+    wake-task-waiters(task)
+    ring-push(runtime.completed, task)
+    release-task-frame(runtime, task)
+}
+
+fnc fail-task(runtime: Runtime, task: TaskFrame, error: any) -> () {
+    task.state = "completed"
+    task.queued = false
+    task.error = error
+    wake-task-waiters(task)
+    ring-push(runtime.completed, task)
+    release-task-frame(runtime, task)
+}
+
+fnc cancel-frame(task: TaskFrame) -> () {
+    when(task.state != "completed").then({
+        task.generation = task.generation + 1
+        task.state = "completed"
+        task.queued = false
+        task.error = "cancelled"
+    })
+}
+
+fnc cancel-frame-in-runtime(runtime: Runtime, task: TaskFrame) -> () {
+    cancel-frame(task)
+    wake-task-waiters(task)
+    ring-push(runtime.completed, task)
+    release-task-frame(runtime, task)
+}
+
+fnc drain-wakes(runtime: Runtime) -> () {
+    val wakes = kernel.take-wakes(runtime.id)
+
+    forEach(wakes, fnc(wake: any) -> () {
+        val task = find-task(runtime, wake.task-id)
+        when(is-some(task)).then({
+            when(task.generation == wake.generation).then({
+                enqueue-ready(runtime, task)
+            })
+        })
+    })
+}
+
+fnc poll-frame-on-worker(runtime: Runtime, worker-id: int, task: TaskFrame) -> () {
+    task.worker-id = worker-id
+    task.state = "running"
+
+    val ctx = make-context(make-waker(runtime, task), runtime.budget-per-task)
+    val result = poll(task.pollable, ctx)
+
+    when(result.is-ready == false).then({
+        task.state = "pending"
+    }).else({
+        when(is-nil(result.error)).then({
+            complete-task(runtime, task, result.value)
+        }).else({
+            fail-task(runtime, task, result.error)
+        })
+    })
+}
+
+fnc poll-frame(runtime: Runtime, task: TaskFrame) -> () {
+    poll-frame-on-worker(runtime, task.worker-id, task)
+}
+
+fnc tick-worker-timeout(runtime: Runtime, worker-id: int, timeout-ms: int) -> bool {
+    drain-wakes(runtime)
+    val work = dequeue-work(runtime, worker-id)
+
+    rtn when(work.found == false).then({
+        poll-reactor(runtime.reactor, timeout-ms)
+        drain-wakes(runtime)
+        val awakened = dequeue-work(runtime, worker-id)
+        rtn when(awakened.found).then({
+            poll-frame-on-worker(runtime, worker-id, awakened.task)
+            rtn true
+        }).else({
+            rtn false
+        })
+    }).else({
+        poll-frame-on-worker(runtime, worker-id, work.task)
+        rtn true
+    })
+}
+
+fnc tick-worker(runtime: Runtime, worker-id: int) -> bool {
+    rtn tick-worker-timeout(runtime, worker-id, 0)
+}
+
+fnc tick-runtime-timeout(runtime: Runtime, timeout-ms: int) -> bool {
+    rtn tick-worker-timeout(runtime, 0, timeout-ms)
+}
+
+fnc tick-runtime(runtime: Runtime) -> bool {
+    rtn tick-worker(runtime, 0)
+}
+
+fnc run-until-idle(runtime: Runtime) -> () {
+    var active = tick-runtime(runtime)
+    loop-while({ rtn active }, {
+        active = tick-runtime(runtime)
+    })
+}
+
+fnc block-on[T](work: Pollable[T]) -> any {
+    val runtime = create-runtime()
+    val task = spawn-pollable(runtime, work)
+
+    loop-while({ rtn task.state != "completed" }, {
+        tick-runtime(runtime)
+    })
+
+    rtn when(is-nil(task.error)).then({ rtn task.result }).else({ rtn task.error })
+}

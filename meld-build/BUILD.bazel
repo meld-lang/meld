@@ -1,0 +1,77 @@
+"""
+BUILD configuration for meld-build package.
+This package provides build tools and utilities for Meld projects.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_binary", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# Project management library
+cc_library(
+    name = "project-manager",
+    srcs = [
+        "src/project_manager.cpp",
+    ],
+    hdrs = [
+        "src/project_manager.hpp",
+    ],
+    copts = select({
+        "@platforms//os:windows": ["/std:c++latest", "/W3", "/EHsc", "/Zc:__cplusplus"],
+        "//conditions:default": ["-std=c++23", "-Wall", "-Wextra", "-Wpedantic", "-Werror"],
+    }),
+    deps = [
+        "//meld-core:api",
+        "//meld-core:language_tools",
+        "//shared:common",
+    ],
+)
+
+# Build tool executable
+cc_binary(
+    name = "build-tool",
+    srcs = ["src/main.cpp"],
+    copts = select({
+        "@platforms//os:windows": ["/std:c++latest", "/W3", "/EHsc", "/Zc:__cplusplus"],
+        "//conditions:default": ["-std=c++23", "-Wall", "-Wextra", "-Wpedantic", "-Werror"],
+    }),
+    deps = [
+        ":project-manager",
+        "//meld-core:api",
+        "//meld-core:language_tools",
+    ],
+)
+
+# Project manager tests
+cc_test(
+    name = "project_manager_tests",
+    srcs = [
+        "tests/project_manager_test.cpp",
+    ],
+    copts = select({
+        "@platforms//os:windows": ["/std:c++latest", "/W3", "/EHsc", "/Zc:__cplusplus"],
+        "//conditions:default": ["-std=c++23", "-Wall", "-Wextra", "-Wpedantic", "-Werror"],
+    }),
+    deps = [
+        ":project-manager",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Comprehensive test suite
+test_suite(
+    name = "all_tests",
+    tests = [
+        ":project_manager_tests",
+    ],
+)
+
+# Package resolver (from meld-core) — not yet compilable, needs missing includes
+# cc_library(
+#     name = "package_resolver",
+#     srcs = glob(["src/build/*.cpp"]),
+#     hdrs = glob(["include/meld/build/*.hpp"]),
+#     includes = ["include"],
+#     visibility = ["//visibility:public"],
+# )

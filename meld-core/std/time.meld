@@ -1,0 +1,17 @@
+// std/time.meld — Time operations via effects
+
+@uses(Time)
+fnc now-ms() -> int {
+    rtn Time.now-ms()
+}
+
+@uses(Time)
+fnc elapsed-ms(start: int) -> int {
+    rtn Time.now-ms() - start
+}
+
+fnc format-duration(ms: int) -> string {
+    rtn when(ms < 1000).then({ rtn ms + "ms" })
+        .when(ms < 60000).then({ rtn (ms / 1000) + "s" })
+        .else({ rtn (ms / 60000) + "m" })
+}

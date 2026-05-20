@@ -1,0 +1,9 @@
+fnc main() -> () {
+    val x = 42
+    var y = 10
+    println(x)
+    y = y + 1
+    println(y)
+    val name = "meld"
+    println(name)
+}

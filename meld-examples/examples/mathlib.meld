@@ -1,0 +1,3 @@
+// Helper module for 38-module-imports.meld
+fnc square(x: int) -> int { rtn x * x }
+fnc cube(x: int) -> int { rtn x * x * x }

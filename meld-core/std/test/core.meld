@@ -1,0 +1,25 @@
+// std/test/core.meld — Test Framework Core
+// Pure Meld library. No keywords, no built-ins.
+//
+// Usage:
+//   imp std.test.core
+//   imp std.test.assert
+//
+//   suite("math").run {
+//       expect-int(1 + 1).to-equal(2)
+//       expect-int(5 - 3).to-equal(2)
+//   }
+
+struct TestSuite {
+    val name: string
+    var passed: int
+    var failed: int
+}
+
+fnc suite(name: string) -> TestSuite {
+    rtn TestSuite { name = name, passed = 0, failed = 0 }
+}
+
+fnc report(s: TestSuite) -> () {
+    println(s.name + ": " + s.passed + " passed, " + s.failed + " failed")
+}

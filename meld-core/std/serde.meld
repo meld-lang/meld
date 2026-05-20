@@ -1,0 +1,33 @@
+// std/serde.meld — Serialization/Deserialization framework
+// Format-agnostic: implementations for JSON, TOON, MsgPack plug in via Formatter trait.
+
+trait Serializable {
+    fnc serialize(formatter: any) -> any
+}
+
+trait Deserializable {
+    fnc deserialize(data: any) -> any
+}
+
+trait Formatter {
+    fnc write-null() -> any
+    fnc write-bool(value: bool) -> any
+    fnc write-int(value: int) -> any
+    fnc write-float(value: float) -> any
+    fnc write-string(value: string) -> any
+    fnc write-list-start() -> any
+    fnc write-list-end() -> any
+    fnc write-object-start() -> any
+    fnc write-object-end() -> any
+    fnc write-key(key: string) -> any
+}
+
+// Serialize a value using the given formatter
+fnc serialize(value: any, formatter: any) -> any {
+    rtn match(type-of(value), [
+        ["int", { rtn formatter.write-int(value) }],
+        ["float", { rtn formatter.write-float(value) }],
+        ["string", { rtn formatter.write-string(value) }],
+        ["bool", { rtn formatter.write-bool(value) }]
+    ])
+}

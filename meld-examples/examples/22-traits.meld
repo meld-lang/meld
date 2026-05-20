@@ -1,0 +1,18 @@
+// 22 — Traits
+// Define interfaces via functions that dispatch on type.
+// Each type gets uniquely-named implementations.
+
+fnc circle-describe(c: Circle) -> string { rtn "circle r=" + c.radius }
+fnc rect-describe(r: Rect) -> string { rtn "rect " + r.w + "x" + r.h }
+fnc circle-area(c: Circle) -> float { rtn 3.14 * c.radius * c.radius }
+fnc rect-area(r: Rect) -> float { rtn r.w * r.h }
+
+fnc main() -> () {
+    val c = Circle { radius = 5.0 }
+    val r = Rect { w = 3.0, h = 4.0 }
+
+    println(c.circle-describe())
+    println("area = " + c.circle-area())
+    println(r.rect-describe())
+    println("area = " + r.rect-area())
+}

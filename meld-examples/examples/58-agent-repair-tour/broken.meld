@@ -1,0 +1,39 @@
+// 58 — Agent Repair Tour: BROKEN version
+// This file contains deliberate errors that demonstrate Meld's
+// diagnostic system. Run with --json to see structured error output.
+//
+// Errors present:
+// 1. Undefined variable reference
+// 2. Wrong argument count
+// 3. Type mismatch in operation
+// 4. Missing return value
+// 5. Calling non-existent function
+
+fnc add(a: int, b: int) -> int {
+    rtn a + b
+}
+
+fnc greet(name: string) -> string {
+    rtn "Hello, " + name
+}
+
+fnc main() -> () {
+    // ERROR 1: undefined variable 'x'
+    println(x)
+
+    // ERROR 2: wrong number of arguments (add takes 2)
+    val sum = add(1, 2, 3)
+
+    // ERROR 3: type mismatch — adding string + bool
+    val bad = "hello" + true
+
+    // ERROR 4: function missing return
+    val result = no-return()
+
+    // ERROR 5: calling undefined function
+    val data = fetch-data("url")
+}
+
+fnc no-return() -> int {
+    val x = 42
+}

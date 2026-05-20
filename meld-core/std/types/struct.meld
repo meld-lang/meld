@@ -1,0 +1,9 @@
+// std/types/struct.meld — Value semantics, stack-allocated
+
+type struct {
+    meta_set(self, "semantics", "value")
+    meta_set(self, "memory", "stack")
+    meta_set(self, "copyable", true)
+    meta_set(self, "fields_allowed", true)
+    meta_set(self, "methods_allowed", true)
+}

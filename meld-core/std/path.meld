@@ -1,0 +1,48 @@
+// std/path.meld — File path manipulation
+// Pure functions for path operations (no I/O effects).
+
+fnc path-join(base: string, child: string) -> string {
+    rtn when(ends-with(base, "/"))
+        .then({ rtn base + child })
+        .else({ rtn base + "/" + child })
+}
+
+fnc path-basename(path: string) -> string {
+    val parts = split(path, "/")
+    rtn parts[len(parts) - 1]
+}
+
+fnc path-dirname(path: string) -> string {
+    val parts = split(path, "/")
+    val n = len(parts)
+    rtn when(n <= 1).then({ rtn "." }).else({
+        val without-last = filter(parts, fnc(p: any) -> bool { rtn p != parts[n - 1] })
+        rtn reduce(without-last, "", fnc(acc: any, p: any) -> any {
+            rtn when(acc == "").then({ rtn "" + p }).else({ rtn acc + "/" + p })
+        })
+    })
+}
+
+fnc path-extension(path: string) -> string {
+    val base = path-basename(path)
+    val parts = split(base, ".")
+    rtn when(len(parts) <= 1).then({ rtn "" }).else({ rtn parts[len(parts) - 1] })
+}
+
+fnc path-stem(path: string) -> string {
+    val base = path-basename(path)
+    val parts = split(base, ".")
+    rtn parts[0]
+}
+
+fnc path-has-extension(path: string, ext: string) -> bool {
+    rtn path-extension(path) == ext
+}
+
+fnc path-is-absolute(path: string) -> bool {
+    rtn starts-with(path, "/")
+}
+
+fnc path-normalize(path: string) -> string {
+    rtn replace(replace(path, "//", "/"), "/./", "/")
+}

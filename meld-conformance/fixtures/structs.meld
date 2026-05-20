@@ -1,0 +1,13 @@
+fnc to-string(p: Point) -> string { rtn "(" + p.x + ", " + p.y + ")" }
+fnc add(a: Point, b: Point) -> Point { rtn Point { x = a.x + b.x, y = a.y + b.y } }
+
+fnc main() -> () {
+    val p = Point { x = 3, y = 4 }
+    println(p.x)
+    println(p.y)
+    println(p.to-string())
+
+    val q = Point { x = 1, y = 2 }
+    val sum = p + q
+    println(sum.to-string())
+}

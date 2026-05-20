@@ -1,0 +1,23 @@
+// 20 — Effect Sandboxing
+// Effects are explicit — functions declare what they do.
+
+fnc pure-add(a: int, b: int) -> int {
+    // No effects — pure computation
+    rtn a + b
+}
+
+fnc log-and-add(a: int, b: int) -> int {
+    // Uses Console effect
+    Console.println("adding " + a + " + " + b)
+    rtn a + b
+}
+
+fnc main() -> () {
+    // Pure function — no side effects
+    val x = pure-add(3, 4)
+    println("pure: " + x)
+
+    // Effectful function — prints as side effect
+    val y = log-and-add(5, 6)
+    println("result: " + y)
+}

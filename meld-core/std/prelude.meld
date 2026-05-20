@@ -1,0 +1,9 @@
+// std/prelude.meld — Auto-loaded before all user code.
+// Defines the minimal bootstrap: type().
+// true, false, nil are built-in literals provided by the interpreter.
+
+fnc type(name: string, definition: fnc(self: any) -> ()) -> any {
+    val kind = kernel.meta-set(name, "doc.is_type_kind", true)
+    definition(kind)
+    rtn kind
+}

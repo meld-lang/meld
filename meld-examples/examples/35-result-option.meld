@@ -1,0 +1,29 @@
+// 35 — Result and Option
+// Error handling without exceptions.
+
+fnc divide(a: int, b: int) -> Result {
+    rtn when(b == 0).then({ rtn Err("division by zero") }).else({ rtn Ok(a / b) })
+}
+
+fnc find-first(arr: list, target: int) -> Option {
+    rtn when(len(arr) == 0).then({ rtn None }).else({
+        rtn when(arr[0] == target).then({ rtn Some(0) }).else({ rtn None })
+    })
+}
+
+fnc main() -> () {
+    // Result: Ok and Err
+    val r1 = divide(10, 2)
+    println("10/2 = " + unwrap(r1))
+    println("is-ok = " + r1.is-ok)
+
+    val r2 = divide(5, 0)
+    println("5/0 is-ok = " + r2.is-ok)
+    println("5/0 error = " + r2.error)
+
+    // Option: Some and None
+    val found = Some(42)
+    println("found = " + unwrap(found))
+    println("is-some = " + found.is-some)
+    println("None.is-some = " + None.is-some)
+}

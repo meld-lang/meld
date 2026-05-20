@@ -1,0 +1,41 @@
+// 45 — Trait Bounds
+// Constrain generic functions to types that implement specific behaviors.
+// In Meld, traits are expressed via multiple dispatch — if a type has
+// the required function, it satisfies the constraint.
+
+// "Printable" trait: any type with a to-str function
+fnc to-str(n: int) -> string { rtn "" + n }
+fnc to-str(s: string) -> string { rtn s }
+fnc to-str(b: bool) -> string { rtn when(b).then({ rtn "true" }).else({ rtn "false" }) }
+fnc to-str(p: Point) -> string { rtn "(" + p.x + ", " + p.y + ")" }
+
+// "Comparable" trait: any type with a less-than function
+fnc less-than(a: int, b: int) -> bool { rtn a < b }
+fnc less-than(a: string, b: string) -> bool { rtn len(a) < len(b) }
+
+// Generic function requiring "Printable" — works on any type with to-str
+fnc print-labeled(label: string, value: any) -> () {
+    println(label + ": " + to-str(value))
+}
+
+// Generic function requiring "Comparable" — works on any type with less-than
+fnc min-of(a: any, b: any) -> any {
+    rtn when(less-than(a, b)).then({ rtn a }).else({ rtn b })
+}
+
+fnc max-of(a: any, b: any) -> any {
+    rtn when(less-than(a, b)).then({ rtn b }).else({ rtn a })
+}
+
+fnc main() -> () {
+    // Printable constraint satisfied by int, string, bool, Point
+    print-labeled("number", 42)
+    print-labeled("name", "Alice")
+    print-labeled("flag", true)
+    print-labeled("point", Point { x = 3, y = 4 })
+
+    // Comparable constraint satisfied by int, string
+    println("min(10, 3) = " + min-of(10, 3))
+    println("max(10, 3) = " + max-of(10, 3))
+    println("min(hello, hi) = " + min-of("hello", "hi"))
+}

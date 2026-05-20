@@ -1,0 +1,29 @@
+// 32 — Conditionals (No Keywords)
+// Meld has no if/else keywords. Control flow is library code.
+
+fnc classify(n: int) -> string {
+    rtn when(n == 0).then({ rtn "zero" })
+        .when(n == 1).then({ rtn "one" })
+        .when(n == 2).then({ rtn "two" })
+        .else({ rtn "many" })
+}
+
+fnc abs(x: int) -> int {
+    rtn when(x < 0).then({ rtn 0 - x }).else({ rtn x })
+}
+
+fnc main() -> () {
+    // when/then/else — fluent conditional
+    println("classify(0) = " + classify(0))
+    println("classify(1) = " + classify(1))
+    println("classify(5) = " + classify(5))
+
+    // ifTrue/ifFalse — conditional execution
+    val big = 100 > 50
+    ifTrue(big, { println("100 is big") })
+    ifFalse(big, { println("this won't print") })
+
+    // abs using when
+    println("abs(-5) = " + abs(-5))
+    println("abs(3) = " + abs(3))
+}

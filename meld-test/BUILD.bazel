@@ -1,0 +1,18 @@
+# meld-test — Meld Test Framework
+#
+# The test framework is now a pure Meld library at meld-core/std/test/.
+# This package is retained for documentation only.
+#
+# Library files:
+#   std/test/core.meld     — TestResult, TestSuite, TestStatus
+#   std/test/assert.meld   — Assertion functions
+#   std/test/property.meld — Property-based testing (generators, shrinkers)
+#   std/test/mock.meld     — Mocking framework
+#   std/test/bdd.meld      — BDD/Gherkin-style testing
+#   std/test/runner.meld   — Test discovery and execution
+#
+# Usage in Meld:
+#   imp std.test.assert
+#   imp std.test.property
+
+package(default_visibility = ["//visibility:public"])

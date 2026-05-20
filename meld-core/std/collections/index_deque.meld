@@ -1,0 +1,123 @@
+// std/collections/index_deque.meld - intrusive deque over integer slots.
+//
+// Cache policies use this for O(1) queue movement while entries live in a
+// separate slot arena. The structure is reusable for schedulers, arenas, and
+// other Meld libraries that need stable indexes.
+
+struct IndexDeque {
+    var prev: list
+    var next: list
+    var present: list
+    val capacity: int
+    var head: int
+    var tail: int
+    var size: int
+}
+
+fnc index-deque-max(a: int, b: int) -> int {
+    rtn when(a > b).then({ rtn a }).else({ rtn b })
+}
+
+fnc index-deque-create(capacity: int) -> IndexDeque {
+    val cap = index-deque-max(0, capacity)
+    rtn IndexDeque {
+        prev = iarr-new(cap, -1),
+        next = iarr-new(cap, -1),
+        present = iarr-new(cap, 0),
+        capacity = cap,
+        head = -1,
+        tail = -1,
+        size = 0
+    }
+}
+
+fnc index-deque-valid(queue: IndexDeque, index: int) -> bool {
+    rtn index >= 0 && index < queue.capacity
+}
+
+fnc index-deque-contains(queue: IndexDeque, index: int) -> bool {
+    rtn when(index-deque-valid(queue, index)).then({
+        rtn iarr-get(queue.present, index) == 1
+    }).else({ rtn false })
+}
+
+fnc index-deque-clear(queue: IndexDeque) -> () {
+    queue.prev = iarr-new(queue.capacity, -1)
+    queue.next = iarr-new(queue.capacity, -1)
+    queue.present = iarr-new(queue.capacity, 0)
+    queue.head = -1
+    queue.tail = -1
+    queue.size = 0
+}
+
+fnc index-deque-link-last(queue: IndexDeque, index: int) -> () {
+    when(index-deque-valid(queue, index) && index-deque-contains(queue, index) == false).then({
+        index-deque-link-last-present(queue, index)
+    })
+}
+
+fnc index-deque-link-last-present(queue: IndexDeque, index: int) -> () {
+    iarr-set-mut(queue.prev, index, queue.tail)
+    iarr-set-mut(queue.next, index, -1)
+    when(queue.tail >= 0).then({
+        iarr-set-mut(queue.next, queue.tail, index)
+    }).else({
+        queue.head = index
+    })
+    queue.tail = index
+    iarr-set-mut(queue.present, index, 1)
+    queue.size = queue.size + 1
+}
+
+fnc index-deque-unlink(queue: IndexDeque, index: int) -> () {
+    when(index-deque-contains(queue, index)).then({
+        index-deque-unlink-present(queue, index)
+    })
+}
+
+fnc index-deque-unlink-present(queue: IndexDeque, index: int) -> () {
+    val previous = iarr-get(queue.prev, index)
+    val following = iarr-get(queue.next, index)
+
+    when(previous >= 0).then({
+        iarr-set-mut(queue.next, previous, following)
+    }).else({
+        queue.head = following
+    })
+
+    when(following >= 0).then({
+        iarr-set-mut(queue.prev, following, previous)
+    }).else({
+        queue.tail = previous
+    })
+
+    iarr-set-mut(queue.prev, index, -1)
+    iarr-set-mut(queue.next, index, -1)
+    iarr-set-mut(queue.present, index, 0)
+    queue.size = index-deque-max(0, queue.size - 1)
+}
+
+fnc index-deque-move-to-back(queue: IndexDeque, index: int) -> () {
+    when(index-deque-contains(queue, index) && queue.tail != index).then({
+        index-deque-move-to-back-present(queue, index)
+    })
+}
+
+fnc index-deque-move-to-back-present(queue: IndexDeque, index: int) -> () {
+    when(queue.tail != index).then({
+        index-deque-unlink-present(queue, index)
+        index-deque-link-last-present(queue, index)
+    })
+}
+
+fnc index-deque-pop-front(queue: IndexDeque) -> int {
+    val front = queue.head
+    when(front >= 0).then({
+        index-deque-unlink(queue, front)
+    })
+    rtn front
+}
+
+fnc index-deque-front(queue: IndexDeque) -> int {
+    rtn queue.head
+}

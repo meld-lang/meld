@@ -1,0 +1,23 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "common",
+    srcs = [
+        "common.cpp",
+        "config.cpp",
+        "logging.cpp",
+    ],
+    hdrs = [
+        "common.hpp",
+        "config.hpp",
+        "logging.hpp",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Alias so //shared:logging resolves (logging is part of :common)
+alias(
+    name = "logging",
+    actual = ":common",
+    visibility = ["//visibility:public"],
+)

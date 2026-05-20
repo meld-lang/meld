@@ -1,0 +1,9 @@
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -54,7 +54,6 @@
+             "include/boost/spirit/home/x3/directive/repeat.hpp",
+             "include/boost/spirit/home/x3/nonterminal.hpp",
+-            "include/boost/spirit/home/x3/nonterminal/detail/rule.hpp",
+             "include/boost/spirit/home/x3/nonterminal/rule.hpp",
+             "include/boost/spirit/home/x3/numeric.hpp",
+             "include/boost/spirit/home/x3/numeric/bool.hpp",

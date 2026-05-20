@@ -1,0 +1,40 @@
+// 46 — Static Methods
+// Namespace-level functions associated with a type but not dispatched
+// on an instance. In Meld, these are functions that create or operate
+// on a type without taking it as the first parameter.
+
+// "Static" constructors — create instances without an existing one
+fnc Vec2-zero() -> Vec2 { rtn Vec2 { x = 0, y = 0 } }
+fnc Vec2-unit-x() -> Vec2 { rtn Vec2 { x = 1, y = 0 } }
+fnc Vec2-unit-y() -> Vec2 { rtn Vec2 { x = 0, y = 1 } }
+fnc Vec2-from-scalar(s: int) -> Vec2 { rtn Vec2 { x = s, y = s } }
+
+// Instance methods — dispatched on the type
+fnc to-string(v: Vec2) -> string { rtn "(" + v.x + ", " + v.y + ")" }
+fnc scale(v: Vec2, factor: int) -> Vec2 { rtn Vec2 { x = v.x * factor, y = v.y * factor } }
+
+// Static factory for a Counter
+fnc Counter-new(start: int) -> Counter { rtn Counter { value = start } }
+fnc Counter-default() -> Counter { rtn Counter { value = 0 } }
+
+// Instance methods on Counter
+fnc increment(c: Counter) -> Counter { rtn Counter { value = c.value + 1 } }
+fnc get(c: Counter) -> int { rtn c.value }
+
+fnc main() -> () {
+    // Static constructors (no instance needed)
+    val origin = Vec2-zero()
+    val right = Vec2-unit-x()
+    val diagonal = Vec2-from-scalar(5)
+
+    println("origin = " + origin.to-string())
+    println("right = " + right.to-string())
+    println("diagonal = " + diagonal.to-string())
+    println("scaled = " + diagonal.scale(3).to-string())
+
+    // Static factory pattern
+    val c = Counter-new(10)
+    println("counter = " + c.get())
+    val c2 = c.increment().increment()
+    println("after +2 = " + c2.get())
+}

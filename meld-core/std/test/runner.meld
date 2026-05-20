@@ -1,0 +1,25 @@
+// std/test/runner.meld — Test Runner
+// Pure Meld library. Discovers and runs test suites.
+
+imp std.test.core
+
+struct RunResult {
+    val total: int
+    val passed: int
+    val failed: int
+}
+
+fnc run-and-report(name: string, passed: int, failed: int) -> RunResult {
+    val total = passed + failed
+    println("--- " + name + " ---")
+    println("  Total:  " + total)
+    println("  Passed: " + passed)
+    println("  Failed: " + failed)
+    (failed == 0).ifTrue {
+        println("  Result: ALL PASSED")
+    }
+    (failed > 0).ifTrue {
+        println("  Result: FAILURES")
+    }
+    rtn RunResult { total = total, passed = passed, failed = failed }
+}

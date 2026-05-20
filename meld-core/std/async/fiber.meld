@@ -1,0 +1,45 @@
+// std/async/fiber.meld - compatibility facade over Pollable
+//
+// Meld async is stackless. A Fiber is now a named pollable frame for older
+// code that still talks about fibers; it does not capture or swap stacks.
+
+imp std.async.core
+imp std.async.task
+
+struct Fiber[T] {
+    val id: int
+    var state: string
+    val work: Pollable[T]
+}
+
+var fiber-counter = 0
+
+fnc next-fiber-id() -> int {
+    fiber-counter = fiber-counter + 1
+    rtn fiber-counter
+}
+
+fnc create-fiber[T](work: Pollable[T]) -> Fiber[T] {
+    rtn Fiber {
+        id = next-fiber-id(),
+        state = "created",
+        work = work
+    }
+}
+
+fnc fiber-from-function[T](f: fnc() -> T) -> Fiber[T] {
+    rtn create-fiber(from-function(f))
+}
+
+fnc poll-fiber[T](fiber: Fiber[T], ctx: PollContext) -> Poll[T] {
+    fiber.state = "running"
+    val result = poll(fiber.work, ctx)
+
+    when(result.is-ready).then({
+        fiber.state = "completed"
+    }).else({
+        fiber.state = "pending"
+    })
+
+    rtn result
+}

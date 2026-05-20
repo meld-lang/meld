@@ -1,0 +1,37 @@
+// 02 — Variables and Types
+// Immutable by default. Explicit mutation with var.
+
+// Immutable bindings (val)
+val name = "Alice"
+val age = 30
+val pi = 3.14159
+val active = true
+
+// Mutable bindings (var)
+var counter = 0
+var greeting = "hello"
+
+// Type annotations (optional — types are inferred)
+val score: int = 100
+val ratio: float = 0.75
+val label: string = "test"
+val flag: bool = false
+
+// Nullable types — optional[T] or T?
+val maybe-name: string? = "Bob"
+val nothing: int? = nil
+
+// Kebab-case identifiers
+val first-name = "Alice"
+val last-name = "Smith"
+val is-active = true
+val max-retry-count = 3
+
+fnc main() -> () {
+    println("name = " + name)
+    println("age = " + age)
+    println("pi = " + pi)
+    println("active = " + active)
+    println("first-name = " + first-name)
+    println("max-retry-count = " + max-retry-count)
+}

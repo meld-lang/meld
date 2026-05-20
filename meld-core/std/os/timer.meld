@@ -1,0 +1,26 @@
+// std/os/timer.meld — Timer Primitives
+// Monotonic clock and deadline scheduling.
+
+imp kernel
+
+effect Timer {
+    fnc now-ms() -> int
+    fnc sleep-until(deadline-ms: int) -> ()
+}
+
+// Default handler: delegates to OS clock via kernel.call
+handle Timer {
+    fnc now-ms() -> int {
+        rtn kernel.call("timer_now_ms")
+    }
+    fnc sleep-until(deadline-ms: int) -> () {
+        kernel.call("timer_sleep_until", deadline-ms)
+    }
+}
+
+// Convenience: sleep for a duration
+@requires(Timer)
+fnc sleep-ms(ms: int) -> () {
+    val deadline = Timer.now-ms() + ms
+    Timer.sleep-until(deadline)
+}

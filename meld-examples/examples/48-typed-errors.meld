@@ -1,0 +1,55 @@
+// 48 — Typed Errors
+// Explicit error types that declare what can go wrong.
+// Functions document their failure modes in their signatures.
+
+// Named error types as structs
+fnc IoError(msg: string) -> IoErr { rtn IoErr { kind = "io", message = msg } }
+fnc ParseError(msg: string) -> ParseErr { rtn ParseErr { kind = "parse", message = msg } }
+fnc ValidationError(msg: string) -> ValErr { rtn ValErr { kind = "validation", message = msg } }
+
+// Functions declare which errors they can produce
+fnc read-file(path: string) -> Result {
+    rtn when(path == "").then({ rtn Err("io: empty path") })
+        .when(path == "/missing").then({ rtn Err("io: file not found") })
+        .else({ rtn Ok("file contents of " + path) })
+}
+
+fnc parse-number(s: string) -> Result {
+    rtn when(s == "42").then({ rtn Ok(42) })
+        .when(s == "0").then({ rtn Ok(0) })
+        .when(s == "100").then({ rtn Ok(100) })
+        .else({ rtn Err("parse: not a number: " + s) })
+}
+
+fnc validate-range(n: int, min: int, max: int) -> Result {
+    rtn when(n < min).then({ rtn Err("validation: " + n + " below min " + min) })
+        .when(n > max).then({ rtn Err("validation: " + n + " above max " + max) })
+        .else({ rtn Ok(n) })
+}
+
+// Compose fallible operations — errors propagate with context
+fnc load-and-validate(path: string) -> Result {
+    val content = read-file(path)
+    rtn when(content.is-ok == false).then({ rtn content }).else({
+        val parsed = parse-number(unwrap(content))
+        rtn when(parsed.is-ok == false).then({ rtn parsed }).else({
+            rtn validate-range(unwrap(parsed), 1, 99)
+        })
+    })
+}
+
+fnc main() -> () {
+    // Each error type is distinct and informative
+    val r1 = read-file("")
+    println("empty path: " + r1.error)
+
+    val r2 = parse-number("abc")
+    println("bad number: " + r2.error)
+
+    val r3 = validate-range(200, 1, 99)
+    println("out of range: " + r3.error)
+
+    // Successful composition
+    val r4 = load-and-validate("/config")
+    println("load /config: " + r4.error)
+}

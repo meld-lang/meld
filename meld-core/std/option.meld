@@ -1,0 +1,23 @@
+// std/option.meld — Option type for representing optional values
+// Represents either a value (some) or absence of value (none).
+// Implementation provided by the runtime.
+
+@builtin
+struct option[T] {
+    fnc is_some() -> bool
+    fnc is_none() -> bool
+    fnc value() -> T
+    fnc value_or(default: T) -> T
+    fnc unwrap() -> T
+    fnc unwrap_or(default: T) -> T
+    fnc expect(message: string) -> T
+}
+
+// Constructor helpers
+fnc Some(value: any) -> any {
+    rtn value
+}
+
+fnc None() -> any {
+    rtn nil
+}

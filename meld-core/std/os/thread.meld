@@ -1,0 +1,31 @@
+// std/os/thread.meld — OS Thread Primitives
+// Thin bindings over kernel.call. Requires @requires(Thread).
+
+imp kernel
+
+effect Thread {
+    fnc spawn(task: fnc() -> ()) -> int
+    fnc join(handle: int) -> ()
+    fnc sleep-ms(ms: int) -> ()
+    fnc current-id() -> int
+    fnc yield() -> ()
+}
+
+// Default handler: delegates to OS via kernel.call
+handle Thread {
+    fnc spawn(task: fnc() -> ()) -> int {
+        rtn kernel.call("thread_spawn", task)
+    }
+    fnc join(handle: int) -> () {
+        kernel.call("thread_join", handle)
+    }
+    fnc sleep-ms(ms: int) -> () {
+        kernel.call("thread_sleep_ms", ms)
+    }
+    fnc current-id() -> int {
+        rtn kernel.call("thread_current_id")
+    }
+    fnc yield() -> () {
+        kernel.call("thread_yield")
+    }
+}

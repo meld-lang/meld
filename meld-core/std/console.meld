@@ -1,0 +1,23 @@
+// std/console.meld — Console I/O
+// Use @requires(Console) for functions that read/write to terminal.
+
+imp kernel
+
+effect Console {
+    fnc print(message: string) -> ()
+    fnc println(message: string) -> ()
+    fnc read-line() -> string
+}
+
+handle Console {
+    fnc print(message: string) -> () {
+        kernel.call("printf", message)
+    }
+    fnc println(message: string) -> () {
+        kernel.call("printf", message)
+        kernel.call("printf", "\n")
+    }
+    fnc read-line() -> string {
+        rtn kernel.call("read_line")
+    }
+}

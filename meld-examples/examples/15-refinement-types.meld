@@ -1,0 +1,23 @@
+// 15 — Refinement Types (Runtime Validation)
+// Use assert to enforce constraints at runtime.
+
+fnc positive(n: int) -> int {
+    assert(n > 0, "must be positive")
+    rtn n
+}
+
+fnc percentage(n: int) -> int {
+    assert(n >= 0, "percentage must be >= 0")
+    assert(n <= 100, "percentage must be <= 100")
+    rtn n
+}
+
+fnc main() -> () {
+    val x = positive(5)
+    println("positive(5) = " + x)
+
+    val p = percentage(75)
+    println("percentage(75) = " + p)
+
+    println("validations passed!")
+}

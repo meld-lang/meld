@@ -1,0 +1,10 @@
+// std/types/enum.meld — Algebraic data type, value semantics
+
+type enum {
+    meta_set(self, "semantics", "value")
+    meta_set(self, "memory", "stack")
+    meta_set(self, "copyable", true)
+    meta_set(self, "has_variants", true)
+    meta_set(self, "fields_allowed", false)
+    meta_set(self, "methods_allowed", false)
+}

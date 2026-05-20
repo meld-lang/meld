@@ -1,0 +1,22 @@
+// std/random.meld — Random number generation via effects
+
+@uses(Random)
+fnc random-int(min: int, max: int) -> int {
+    rtn Random.int(min, max)
+}
+
+@uses(Random)
+fnc random-float() -> float {
+    rtn Random.float()
+}
+
+@uses(Random)
+fnc random-bool() -> bool {
+    rtn Random.bool()
+}
+
+@uses(Random)
+fnc random-choice(items: list) -> any {
+    val index = Random.int(0, len(items))
+    rtn items[index]
+}

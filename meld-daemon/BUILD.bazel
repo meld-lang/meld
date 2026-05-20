@@ -1,0 +1,2025 @@
+"""
+BUILD configuration for meld-daemon package.
+This package provides the unified Meld daemon (meldd) — a single long-lived
+process serving LSP and MCP channels from a shared SemanticModel.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+_COPTS = select({
+    "@platforms//os:windows": ["/std:c++latest", "/W3", "/EHsc", "/Zc:__cplusplus"],
+    "//conditions:default": ["-std=c++23", "-Wall", "-Wextra", "-Wpedantic", "-Werror"],
+})
+
+# SemanticModel — in-memory workspace representation with AST_RWLock
+cc_library(
+    name = "semantic_model",
+    srcs = ["src/semantic_model.cpp"],
+    hdrs = ["include/meld/daemon/semantic_model.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+)
+
+# DualVoiceFormatter — human + machine response formatting
+cc_library(
+    name = "dual_voice",
+    srcs = ["src/dual_voice.cpp"],
+    hdrs = ["include/meld/daemon/dual_voice.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# FileWatcher — filesystem change monitoring with debounce
+cc_library(
+    name = "file_watcher",
+    srcs = ["src/file_watcher.cpp"],
+    hdrs = ["include/meld/daemon/file_watcher.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+)
+
+# IncrementalAnalyzer — incremental re-analysis pipeline
+cc_library(
+    name = "incremental_analyzer",
+    srcs = ["src/incremental_analyzer.cpp"],
+    hdrs = ["include/meld/daemon/incremental_analyzer.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":file_watcher",
+        ":semantic_model",
+        "//meld-core:compiler",
+        "//meld-core:parser",
+    ],
+)
+
+# DependencyGraph — in-memory dependency graph synced with meld.toml
+cc_library(
+    name = "dependency_graph",
+    srcs = ["src/dependency_graph.cpp"],
+    hdrs = ["include/meld/daemon/dependency_graph.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# BazelWorker — persistent Bazel worker protocol
+cc_library(
+    name = "bazel_worker",
+    srcs = ["src/bazel_worker.cpp"],
+    hdrs = ["include/meld/daemon/bazel_worker.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# SandboxLifecycleManager — SRT policy lifecycle
+cc_library(
+    name = "sandbox_lifecycle",
+    srcs = ["src/sandbox_lifecycle.cpp"],
+    hdrs = ["include/meld/daemon/sandbox_lifecycle.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# IntegrityVerifier — pre-execution binary integrity verification
+cc_library(
+    name = "integrity_verifier",
+    srcs = ["src/integrity_verifier.cpp"],
+    hdrs = ["include/meld/daemon/integrity_verifier.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# SemanticTokenProvider — LSP semantic token provision with parser integration
+cc_library(
+    name = "semantic_token_provider",
+    srcs = ["src/semantic_token_provider.cpp"],
+    hdrs = ["include/meld/daemon/semantic_token_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# LSP utilities (merged from meld-lsp-server)
+cc_library(
+    name = "lsp_utils",
+    srcs = [
+        "src/lsp/ownership_lsp.cpp",
+        "src/lsp/effect_diagnostic_provider.cpp",
+    ],
+    hdrs = [
+        "include/meld/lsp/ownership_lsp.hpp",
+        "include/meld/lsp/effect_diagnostic_provider.hpp",
+    ],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        "//meld-core:parser",
+        "//meld-core:kernel",
+        "//meld-core:compiler",
+    ],
+)
+
+# MCP protocol (merged from meld-mcp-server)
+cc_library(
+    name = "mcp_protocol",
+    srcs = [
+        "src/mcp/mcp_protocol.cpp",
+        "src/mcp/code_analyzer.cpp",
+        "src/mcp/ai_dx_tools.cpp",
+    ],
+    hdrs = [
+        "src/mcp/mcp_protocol.hpp",
+        "src/mcp/code_analyzer.hpp",
+        "src/mcp/ai_dx_tools.hpp",
+    ],
+    copts = _COPTS,
+    includes = ["include", "src"],
+    deps = [
+        "//meld-core:parser",
+        "//meld-core:kernel",
+        "//meld-core:api",
+        "//meld-core:language_tools",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# LSP channel adapter
+cc_library(
+    name = "lsp_channel",
+    srcs = ["src/lsp_channel.cpp"],
+    hdrs = ["include/meld/daemon/lsp_channel.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":completion_provider",
+        ":dual_voice",
+        ":incremental_analyzer",
+        ":lsp_utils",
+        ":navigation_provider",
+        ":semantic_model",
+        ":semantic_token_provider",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# MCP channel adapter
+cc_library(
+    name = "mcp_channel",
+    srcs = ["src/mcp_channel.cpp"],
+    hdrs = ["include/meld/daemon/mcp_channel.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":dual_voice",
+        ":mcp_protocol",
+        ":semantic_model",
+        "//meld-core:parser",
+        "//meld-interpreter:interpreter",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# DAP channel — Debug Adapter Protocol server
+cc_library(
+    name = "dap_channel",
+    srcs = ["src/dap_channel.cpp"],
+    hdrs = ["include/meld/daemon/dap_channel.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        "//meld-interpreter:interpreter",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# DebugSidecarResolver — .mdebug file resolution with caching
+cc_library(
+    name = "debug_sidecar_resolver",
+    srcs = ["src/debug_sidecar_resolver.cpp"],
+    hdrs = ["include/meld/daemon/debug_sidecar_resolver.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+)
+
+# DeterministicContext — deterministic time/entropy/scheduling for agent-mode
+cc_library(
+    name = "deterministic_context",
+    srcs = ["src/deterministic_context.cpp"],
+    hdrs = ["include/meld/daemon/deterministic_context.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+)
+
+# DeterministicHandlers — effect handlers for deterministic execution
+cc_library(
+    name = "deterministic_handlers",
+    srcs = ["src/deterministic_handlers.cpp"],
+    hdrs = ["include/meld/daemon/deterministic_handlers.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":deterministic_context",
+    ],
+)
+
+# EmbeddingProvider — abstract interface + passthrough fallback
+cc_library(
+    name = "embedding_provider",
+    hdrs = [
+        "include/meld/daemon/embedding_provider.hpp",
+        "include/meld/daemon/passthrough_embedding_provider.hpp",
+    ],
+    copts = _COPTS,
+    includes = ["include"],
+)
+
+# OnnxEmbeddingProvider — ONNX Runtime embedding provider
+cc_library(
+    name = "onnx_embedding_provider",
+    srcs = ["src/daemon/onnx_embedding_provider.cpp"],
+    hdrs = ["include/meld/daemon/onnx_embedding_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":embedding_provider",
+    ],
+)
+
+# VectorIndex — semantic vector index for intent-based symbol discovery
+cc_library(
+    name = "vector_index",
+    srcs = ["src/daemon/vector_index.cpp"],
+    hdrs = ["include/meld/daemon/vector_index.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":embedding_provider",
+        ":semantic_model",
+    ],
+)
+
+# BinaryFreshnessChecker — binary staleness detection and auto-rebuild
+cc_library(
+    name = "binary_freshness",
+    srcs = ["src/binary_freshness.cpp"],
+    hdrs = ["include/meld/daemon/binary_freshness.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":bazel_worker",
+        ":semantic_model",
+    ],
+)
+
+# Tier0Sandbox — in-process JIT sandbox for agent scripts
+cc_library(
+    name = "tier0_sandbox",
+    srcs = ["src/tier0_sandbox.cpp"],
+    hdrs = ["include/meld/daemon/tier0_sandbox.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# LimaVmManager — Lima VM lifecycle management on macOS
+cc_library(
+    name = "lima_vm_manager",
+    srcs = ["src/lima_vm_manager.cpp"],
+    hdrs = ["include/meld/daemon/lima_vm_manager.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# MeldDaemon core — owns SemanticModel and all subsystems
+cc_library(
+    name = "daemon",
+    srcs = ["src/daemon.cpp"],
+    hdrs = ["include/meld/daemon/daemon.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":bazel_worker",
+        ":binary_freshness",
+        ":debug_sidecar_resolver",
+        ":dependency_graph",
+        ":deterministic_context",
+        ":deterministic_handlers",
+        ":embedding_provider",
+        ":file_watcher",
+        ":incremental_analyzer",
+        ":integrity_verifier",
+        ":lima_vm_manager",
+        ":lsp_channel",
+        ":mcp_advanced_tool_provider",
+        ":mcp_channel",
+        ":sandbox_lifecycle",
+        ":semantic_model",
+        ":tier0_sandbox",
+        ":vector_index",
+    ],
+)
+
+# meldd binary — CLI entry point
+cc_binary(
+    name = "meldd",
+    srcs = ["src/main.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":daemon",
+    ],
+)
+
+# CompletionProvider — LSP code completion and signature help
+cc_library(
+    name = "completion_provider",
+    srcs = ["src/completion_provider.cpp"],
+    hdrs = ["include/meld/daemon/completion_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# NavigationProvider — LSP code navigation (go-to-def, find-refs, symbols, hover)
+cc_library(
+    name = "navigation_provider",
+    srcs = ["src/navigation_provider.cpp"],
+    hdrs = ["include/meld/daemon/navigation_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# DiagnosticsProvider — LSP diagnostics and type checking
+cc_library(
+    name = "diagnostics_provider",
+    srcs = ["src/diagnostics_provider.cpp"],
+    hdrs = ["include/meld/daemon/diagnostics_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# --- Tests ---
+
+# SemanticModel unit tests
+cc_test(
+    name = "semantic_model_tests",
+    srcs = ["tests/semantic_model_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# DualVoiceFormatter unit tests
+cc_test(
+    name = "dual_voice_tests",
+    srcs = ["tests/dual_voice_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":dual_voice",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# FileWatcher unit tests
+cc_test(
+    name = "file_watcher_tests",
+    srcs = ["tests/file_watcher_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":file_watcher",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# DependencyGraph unit tests
+cc_test(
+    name = "dependency_graph_tests",
+    srcs = ["tests/dependency_graph_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":dependency_graph",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# BazelWorker unit tests
+cc_test(
+    name = "bazel_worker_tests",
+    srcs = ["tests/bazel_worker_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":bazel_worker",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# SandboxLifecycleManager unit tests
+cc_test(
+    name = "sandbox_lifecycle_tests",
+    srcs = ["tests/sandbox_lifecycle_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":sandbox_lifecycle",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# IntegrityVerifier unit tests
+cc_test(
+    name = "integrity_verifier_tests",
+    srcs = ["tests/integrity_verifier_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":integrity_verifier",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# LspChannel unit tests
+cc_test(
+    name = "lsp_channel_tests",
+    srcs = ["tests/lsp_channel_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":lsp_channel",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# McpChannel unit tests
+cc_test(
+    name = "mcp_channel_tests",
+    srcs = ["tests/mcp_channel_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_channel",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# DebugSidecarResolver unit tests
+cc_test(
+    name = "debug_sidecar_resolver_tests",
+    srcs = ["tests/debug_sidecar_resolver_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":debug_sidecar_resolver",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Property test: Channel consistency (Property 1)
+cc_test(
+    name = "channel_consistency_property_tests",
+    srcs = ["tests/channel_consistency_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":lsp_channel",
+        ":mcp_channel",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Incremental equivalence (Property 2)
+cc_test(
+    name = "incremental_equivalence_property_tests",
+    srcs = ["tests/incremental_equivalence_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":incremental_analyzer",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Dual-voice completeness (Property 3)
+cc_test(
+    name = "dual_voice_completeness_property_tests",
+    srcs = ["tests/dual_voice_completeness_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":dual_voice",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Integration test: daemon lifecycle
+cc_test(
+    name = "daemon_lifecycle_tests",
+    srcs = ["tests/daemon_lifecycle_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":daemon",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# VectorIndex unit tests
+cc_test(
+    name = "vector_index_tests",
+    srcs = ["tests/vector_index_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":semantic_model",
+        ":vector_index",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Property test: Incremental index equivalence (Property 4)
+cc_test(
+    name = "vector_index_property_tests",
+    srcs = ["tests/vector_index_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":semantic_model",
+        ":vector_index",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# DeterministicContext + handlers unit tests
+cc_test(
+    name = "deterministic_context_tests",
+    srcs = ["tests/deterministic_context_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":daemon",
+        ":deterministic_context",
+        ":deterministic_handlers",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# BinaryFreshnessChecker unit tests
+cc_test(
+    name = "binary_freshness_tests",
+    srcs = ["tests/binary_freshness_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":binary_freshness",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Tier0Sandbox unit tests
+cc_test(
+    name = "tier0_sandbox_tests",
+    srcs = ["tests/tier0_sandbox_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":semantic_model",
+        ":tier0_sandbox",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Property tests: Tier0Sandbox (Properties 15–17)
+cc_test(
+    name = "tier0_sandbox_property_tests",
+    srcs = ["tests/tier0_sandbox_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":semantic_model",
+        ":tier0_sandbox",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# LimaVmManager unit tests
+cc_test(
+    name = "lima_vm_manager_tests",
+    srcs = ["tests/lima_vm_manager_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":lima_vm_manager",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Property tests: LimaVmManager (Properties 18–20)
+cc_test(
+    name = "lima_vm_manager_property_tests",
+    srcs = ["tests/lima_vm_manager_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":lima_vm_manager",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Semantic token provision (Property 21, Req 15.1)
+cc_test(
+    name = "semantic_token_provision_property_tests",
+    srcs = ["tests/semantic_token_provision_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":semantic_token_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Language construct classification (Property 22, Req 15.2)
+cc_test(
+    name = "language_construct_classification_property_tests",
+    srcs = ["tests/language_construct_classification_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":semantic_token_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Syntax error diagnostics (Property 23, Req 15.3)
+cc_test(
+    name = "syntax_error_diagnostics_property_tests",
+    srcs = ["tests/syntax_error_diagnostics_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":semantic_token_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Valid syntax parsing (Property 24, Req 15.4)
+cc_test(
+    name = "valid_syntax_parsing_property_tests",
+    srcs = ["tests/valid_syntax_parsing_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":semantic_token_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Parse error recovery (Property 25, Req 15.5)
+cc_test(
+    name = "parse_error_recovery_property_tests",
+    srcs = ["tests/parse_error_recovery_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":semantic_token_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Context-aware completions (Property 26, Req 16.1)
+cc_test(
+    name = "context_aware_completions_property_tests",
+    srcs = ["tests/context_aware_completions_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":completion_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Symbol completion accuracy (Property 27, Req 16.2)
+cc_test(
+    name = "symbol_completion_accuracy_property_tests",
+    srcs = ["tests/symbol_completion_accuracy_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":completion_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Function signature help (Property 28, Req 16.3)
+cc_test(
+    name = "function_signature_help_property_tests",
+    srcs = ["tests/function_signature_help_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":completion_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Type completion accuracy (Property 29, Req 16.4)
+cc_test(
+    name = "type_completion_accuracy_property_tests",
+    srcs = ["tests/type_completion_accuracy_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":completion_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Context-sensitive filtering (Property 30, Req 16.5)
+cc_test(
+    name = "context_sensitive_filtering_property_tests",
+    srcs = ["tests/context_sensitive_filtering_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":completion_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Grammar conformance validation (Property 31, Req 17.1)
+cc_test(
+    name = "grammar_conformance_property_tests",
+    srcs = ["tests/grammar_conformance_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":diagnostics_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Type error reporting (Property 32, Req 17.2)
+cc_test(
+    name = "type_error_reporting_property_tests",
+    srcs = ["tests/type_error_reporting_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":diagnostics_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Undefined symbol detection (Property 33, Req 17.3)
+cc_test(
+    name = "undefined_symbol_detection_property_tests",
+    srcs = ["tests/undefined_symbol_detection_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":diagnostics_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Refinement constraint validation (Property 34, Req 17.4)
+cc_test(
+    name = "refinement_constraint_property_tests",
+    srcs = ["tests/refinement_constraint_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":diagnostics_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Dispatch ambiguity detection (Property 35, Req 17.5)
+cc_test(
+    name = "dispatch_ambiguity_property_tests",
+    srcs = ["tests/dispatch_ambiguity_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":diagnostics_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Definition navigation accuracy (Property 36, Req 18.1)
+cc_test(
+    name = "definition_navigation_property_tests",
+    srcs = ["tests/definition_navigation_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":navigation_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Reference finding completeness (Property 37, Req 18.2)
+cc_test(
+    name = "reference_finding_property_tests",
+    srcs = ["tests/reference_finding_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":navigation_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Document symbol outline accuracy (Property 38, Req 18.3)
+cc_test(
+    name = "document_symbol_outline_property_tests",
+    srcs = ["tests/document_symbol_outline_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":navigation_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Workspace symbol search completeness (Property 39, Req 18.4)
+cc_test(
+    name = "workspace_symbol_search_property_tests",
+    srcs = ["tests/workspace_symbol_search_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":navigation_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Hover information accuracy (Property 40, Req 18.5)
+cc_test(
+    name = "hover_information_property_tests",
+    srcs = ["tests/hover_information_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":navigation_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# FormattingProvider — LSP code formatting and refactoring
+cc_library(
+    name = "formatting_provider",
+    srcs = ["src/formatting_provider.cpp"],
+    hdrs = ["include/meld/daemon/formatting_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# Property test: Document formatting consistency (Property 41, Req 19.1)
+cc_test(
+    name = "document_formatting_consistency_property_tests",
+    srcs = ["tests/document_formatting_consistency_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":formatting_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Range formatting precision (Property 42, Req 19.2)
+cc_test(
+    name = "range_formatting_precision_property_tests",
+    srcs = ["tests/range_formatting_precision_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":formatting_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Symbol renaming completeness (Property 43, Req 19.3)
+cc_test(
+    name = "symbol_renaming_completeness_property_tests",
+    srcs = ["tests/symbol_renaming_completeness_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":formatting_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Rename conflict detection (Property 44, Req 19.4)
+cc_test(
+    name = "rename_conflict_detection_property_tests",
+    srcs = ["tests/rename_conflict_detection_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":formatting_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Semantic preservation during formatting (Property 45, Req 19.5)
+cc_test(
+    name = "semantic_preservation_formatting_property_tests",
+    srcs = ["tests/semantic_preservation_formatting_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":formatting_provider",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# WorkspaceProvider — LSP workspace management (Req 20)
+cc_library(
+    name = "workspace_provider",
+    srcs = ["src/workspace_provider.cpp"],
+    hdrs = ["include/meld/daemon/workspace_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":dependency_graph",
+        ":file_watcher",
+        ":semantic_model",
+    ],
+)
+
+# MeldFeatureProvider — LSP Meld-specific language features (Req 21)
+cc_library(
+    name = "meld_feature_provider",
+    srcs = ["src/meld_feature_provider.cpp"],
+    hdrs = ["include/meld/daemon/meld_feature_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":semantic_model",
+    ],
+)
+
+# Property test: Workspace file discovery completeness (Property 46, Req 20.1)
+cc_test(
+    name = "workspace_file_discovery_property_tests",
+    srcs = ["tests/workspace_file_discovery_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":workspace_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: LSP incremental index updates (Property 47, Req 20.2)
+cc_test(
+    name = "lsp_incremental_index_property_tests",
+    srcs = ["tests/lsp_incremental_index_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":workspace_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Cross-file resolution accuracy (Property 48, Req 20.3)
+cc_test(
+    name = "cross_file_resolution_property_tests",
+    srcs = ["tests/cross_file_resolution_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":workspace_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Large workspace responsiveness (Property 49, Req 20.4)
+cc_test(
+    name = "large_workspace_responsiveness_property_tests",
+    srcs = ["tests/large_workspace_responsiveness_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":workspace_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Configuration change handling (Property 50, Req 20.5)
+cc_test(
+    name = "configuration_change_handling_property_tests",
+    srcs = ["tests/configuration_change_handling_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":workspace_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Homoiconic analysis correctness (Property 51, Req 21.1)
+cc_test(
+    name = "homoiconic_analysis_property_tests",
+    srcs = ["tests/homoiconic_analysis_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":meld_feature_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Macro system support (Property 52, Req 21.2)
+cc_test(
+    name = "macro_system_support_property_tests",
+    srcs = ["tests/macro_system_support_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":meld_feature_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Refinement type evaluation (Property 53, Req 21.3)
+cc_test(
+    name = "refinement_type_evaluation_property_tests",
+    srcs = ["tests/refinement_type_evaluation_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":meld_feature_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Multiple dispatch resolution (Property 54, Req 21.4)
+cc_test(
+    name = "multiple_dispatch_resolution_property_tests",
+    srcs = ["tests/multiple_dispatch_resolution_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":meld_feature_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: Tree initialization validation (Property 55, Req 21.5)
+cc_test(
+    name = "tree_initialization_validation_property_tests",
+    srcs = ["tests/tree_initialization_validation_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":meld_feature_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# McpToolProvider — MCP codebase exploration, semantic analysis, and search (Req 22–24)
+cc_library(
+    name = "mcp_tool_provider",
+    srcs = ["src/mcp_tool_provider.cpp"],
+    hdrs = ["include/meld/daemon/mcp_tool_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":dependency_graph",
+        ":semantic_model",
+        ":vector_index",
+    ],
+)
+
+# Property test: MCP project discovery completeness (Property 56, Req 22.1)
+cc_test(
+    name = "mcp_project_discovery_property_tests",
+    srcs = ["tests/mcp_project_discovery_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP codebase structure representation (Property 57, Req 22.2)
+cc_test(
+    name = "mcp_codebase_structure_property_tests",
+    srcs = ["tests/mcp_codebase_structure_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP code artifact exposure completeness (Property 58, Req 22.3)
+cc_test(
+    name = "mcp_code_artifact_exposure_property_tests",
+    srcs = ["tests/mcp_code_artifact_exposure_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP dependency analysis accuracy (Property 59, Req 22.4)
+cc_test(
+    name = "mcp_dependency_analysis_property_tests",
+    srcs = ["tests/mcp_dependency_analysis_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        ":dependency_graph",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP documentation extraction completeness (Property 60, Req 22.5)
+cc_test(
+    name = "mcp_documentation_extraction_property_tests",
+    srcs = ["tests/mcp_documentation_extraction_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP grammar parsing conformance (Property 61, Req 23.1)
+cc_test(
+    name = "mcp_grammar_parsing_property_tests",
+    srcs = ["tests/mcp_grammar_parsing_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP type analysis accuracy (Property 62, Req 23.2)
+cc_test(
+    name = "mcp_type_analysis_property_tests",
+    srcs = ["tests/mcp_type_analysis_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP control flow analysis completeness (Property 63, Req 23.3)
+cc_test(
+    name = "mcp_control_flow_analysis_property_tests",
+    srcs = ["tests/mcp_control_flow_analysis_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP macro processing accuracy (Property 64, Req 23.4)
+cc_test(
+    name = "mcp_macro_processing_property_tests",
+    srcs = ["tests/mcp_macro_processing_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP code validation completeness (Property 65, Req 23.5)
+cc_test(
+    name = "mcp_code_validation_property_tests",
+    srcs = ["tests/mcp_code_validation_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP symbol search completeness (Property 66, Req 24.1)
+cc_test(
+    name = "mcp_symbol_search_property_tests",
+    srcs = ["tests/mcp_symbol_search_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP type signature search accuracy (Property 67, Req 24.2)
+cc_test(
+    name = "mcp_type_signature_search_property_tests",
+    srcs = ["tests/mcp_type_signature_search_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP code pattern identification accuracy (Property 68, Req 24.3)
+cc_test(
+    name = "mcp_code_pattern_identification_property_tests",
+    srcs = ["tests/mcp_code_pattern_identification_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP language feature filtering accuracy (Property 69, Req 24.4)
+cc_test(
+    name = "mcp_language_feature_filtering_property_tests",
+    srcs = ["tests/mcp_language_feature_filtering_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP code generation syntax validation (Property 70, Req 25.1)
+cc_test(
+    name = "mcp_code_gen_syntax_property_tests",
+    srcs = ["tests/mcp_code_gen_syntax_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP type definition generation correctness (Property 71, Req 25.2)
+cc_test(
+    name = "mcp_type_def_gen_property_tests",
+    srcs = ["tests/mcp_type_def_gen_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP function generation dispatch compatibility (Property 72, Req 25.3)
+cc_test(
+    name = "mcp_func_gen_dispatch_property_tests",
+    srcs = ["tests/mcp_func_gen_dispatch_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP module generation consistency (Property 73, Req 25.4)
+cc_test(
+    name = "mcp_module_gen_consistency_property_tests",
+    srcs = ["tests/mcp_module_gen_consistency_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP generated code formatting compliance (Property 74, Req 25.5)
+cc_test(
+    name = "mcp_code_formatting_compliance_property_tests",
+    srcs = ["tests/mcp_code_formatting_compliance_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP symbol renaming semantic preservation (Property 75, Req 26.1)
+cc_test(
+    name = "mcp_symbol_rename_property_tests",
+    srcs = ["tests/mcp_symbol_rename_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP function extraction correctness (Property 76, Req 26.2)
+cc_test(
+    name = "mcp_func_extraction_property_tests",
+    srcs = ["tests/mcp_func_extraction_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP module reorganization consistency (Property 77, Req 26.3)
+cc_test(
+    name = "mcp_module_reorg_property_tests",
+    srcs = ["tests/mcp_module_reorg_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP design pattern application correctness (Property 78, Req 26.4)
+cc_test(
+    name = "mcp_pattern_application_property_tests",
+    srcs = ["tests/mcp_pattern_application_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP code optimization functional equivalence (Property 79, Req 26.5)
+cc_test(
+    name = "mcp_code_optimization_property_tests",
+    srcs = ["tests/mcp_code_optimization_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP project configuration access completeness (Property 80, Req 27.1)
+cc_test(
+    name = "mcp_project_config_property_tests",
+    srcs = ["tests/mcp_project_config_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP project structure exposure accuracy (Property 81, Req 27.2)
+cc_test(
+    name = "mcp_project_structure_property_tests",
+    srcs = ["tests/mcp_project_structure_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP build artifact analysis completeness (Property 82, Req 27.3)
+cc_test(
+    name = "mcp_build_artifact_property_tests",
+    srcs = ["tests/mcp_build_artifact_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP version control integration accuracy (Property 83, Req 27.4)
+cc_test(
+    name = "mcp_version_control_property_tests",
+    srcs = ["tests/mcp_version_control_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP test suite identification completeness (Property 84, Req 27.5)
+cc_test(
+    name = "mcp_test_suite_property_tests",
+    srcs = ["tests/mcp_test_suite_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP build system integration accuracy (Property 85, Req 28.1)
+cc_test(
+    name = "mcp_build_system_property_tests",
+    srcs = ["tests/mcp_build_system_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP compiler output access completeness (Property 86, Req 28.2)
+cc_test(
+    name = "mcp_compiler_output_property_tests",
+    srcs = ["tests/mcp_compiler_output_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP testing framework integration accuracy (Property 87, Req 28.4)
+cc_test(
+    name = "mcp_testing_framework_property_tests",
+    srcs = ["tests/mcp_testing_framework_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Property test: MCP documentation tool integration completeness (Property 88, Req 28.5)
+cc_test(
+    name = "mcp_doc_tool_property_tests",
+    srcs = ["tests/mcp_doc_tool_property_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+        "@rapidcheck//:rapidcheck",
+        "@rapidcheck//:rapidcheck_gtest",
+    ],
+)
+
+# Integration tests: Req 9–14 subsystems
+cc_test(
+    name = "integration_req9_14_tests",
+    srcs = ["tests/integration_req9_14_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":binary_freshness",
+        ":daemon",
+        ":lima_vm_manager",
+        ":semantic_model",
+        ":tier0_sandbox",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Integration test: End-to-end LSP features (Task 40.1)
+cc_test(
+    name = "lsp_integration_tests",
+    srcs = ["tests/lsp_integration_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":completion_provider",
+        ":diagnostics_provider",
+        ":formatting_provider",
+        ":meld_feature_provider",
+        ":navigation_provider",
+        ":semantic_model",
+        ":semantic_token_provider",
+        ":workspace_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Integration test: LSP + MCP diagnostic consistency (Task 40.2)
+cc_test(
+    name = "lsp_mcp_consistency_tests",
+    srcs = ["tests/lsp_mcp_consistency_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":diagnostics_provider",
+        ":lsp_channel",
+        ":mcp_channel",
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Integration test: LSP workspace-scale (Task 40.3)
+cc_test(
+    name = "lsp_workspace_scale_tests",
+    srcs = ["tests/lsp_workspace_scale_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":dependency_graph",
+        ":navigation_provider",
+        ":semantic_model",
+        ":workspace_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# McpAdvancedToolProvider — MCP advanced tools for Req 29–36
+cc_library(
+    name = "mcp_advanced_tool_provider",
+    srcs = ["src/mcp_advanced_tool_provider.cpp"],
+    hdrs = ["include/meld/daemon/mcp_advanced_tool_provider.hpp"],
+    copts = _COPTS,
+    includes = ["include"],
+    deps = [
+        ":dependency_graph",
+        ":deterministic_context",
+        ":semantic_model",
+        ":tier0_sandbox",
+        ":vector_index",
+    ],
+)
+
+# Unit tests: SDF format consistency (Task 49.1, Req 30)
+cc_test(
+    name = "mcp_sdf_format_tests",
+    srcs = ["tests/mcp_sdf_format_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Unit tests: Named MCP tools (Task 49.2, Req 29)
+cc_test(
+    name = "mcp_named_tools_tests",
+    srcs = ["tests/mcp_named_tools_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Unit tests: Proof-carrying failures (Task 50.1, Req 31)
+cc_test(
+    name = "mcp_proof_carrying_tests",
+    srcs = ["tests/mcp_proof_carrying_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Unit tests: get_module_specs (Task 51.1, Req 32)
+cc_test(
+    name = "mcp_module_specs_tests",
+    srcs = ["tests/mcp_module_specs_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Unit tests: find_intent (Task 51.2, Req 33)
+cc_test(
+    name = "mcp_find_intent_tests",
+    srcs = ["tests/mcp_find_intent_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Unit tests: refactor (Task 51.3, Req 34)
+cc_test(
+    name = "mcp_refactor_tests",
+    srcs = ["tests/mcp_refactor_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Unit tests: Deterministic MCP parameter (Task 52.1, Req 35)
+cc_test(
+    name = "mcp_deterministic_tests",
+    srcs = ["tests/mcp_deterministic_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Unit tests: Code Mode tools (Task 53.1, Req 36)
+cc_test(
+    name = "mcp_code_mode_tests",
+    srcs = ["tests/mcp_code_mode_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Integration test: End-to-end MCP tool (Task 55.1)
+cc_test(
+    name = "mcp_e2e_integration_tests",
+    srcs = ["tests/mcp_e2e_integration_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Integration test: MCP + LSP consistency (Task 55.2)
+cc_test(
+    name = "mcp_lsp_consistency_tests",
+    srcs = ["tests/mcp_lsp_consistency_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        ":mcp_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Integration test: MCP deterministic execution (Task 55.3)
+cc_test(
+    name = "mcp_deterministic_execution_tests",
+    srcs = ["tests/mcp_deterministic_execution_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":embedding_provider",
+        ":mcp_advanced_tool_provider",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Comprehensive test suite
+test_suite(
+    name = "all_tests",
+    tests = [
+        ":semantic_model_tests",
+        ":dual_voice_tests",
+        ":file_watcher_tests",
+        ":dependency_graph_tests",
+        ":bazel_worker_tests",
+        ":sandbox_lifecycle_tests",
+        ":integrity_verifier_tests",
+        ":lsp_channel_tests",
+        ":mcp_channel_tests",
+        ":channel_consistency_property_tests",
+        ":incremental_equivalence_property_tests",
+        ":dual_voice_completeness_property_tests",
+        ":daemon_lifecycle_tests",
+        ":debug_sidecar_resolver_tests",
+        ":vector_index_tests",
+        ":vector_index_property_tests",
+        ":deterministic_context_tests",
+        ":binary_freshness_tests",
+        ":tier0_sandbox_tests",
+        ":tier0_sandbox_property_tests",
+        ":lima_vm_manager_tests",
+        ":lima_vm_manager_property_tests",
+        ":integration_req9_14_tests",
+        ":lsp_integration_tests",
+        ":lsp_mcp_consistency_tests",
+        ":lsp_workspace_scale_tests",
+        ":mcp_project_discovery_property_tests",
+        ":mcp_codebase_structure_property_tests",
+        ":mcp_code_artifact_exposure_property_tests",
+        ":mcp_dependency_analysis_property_tests",
+        ":mcp_documentation_extraction_property_tests",
+        ":mcp_grammar_parsing_property_tests",
+        ":mcp_type_analysis_property_tests",
+        ":mcp_control_flow_analysis_property_tests",
+        ":mcp_macro_processing_property_tests",
+        ":mcp_code_validation_property_tests",
+        ":mcp_symbol_search_property_tests",
+        ":mcp_type_signature_search_property_tests",
+        ":mcp_code_pattern_identification_property_tests",
+        ":mcp_language_feature_filtering_property_tests",
+        ":mcp_code_gen_syntax_property_tests",
+        ":mcp_type_def_gen_property_tests",
+        ":mcp_func_gen_dispatch_property_tests",
+        ":mcp_module_gen_consistency_property_tests",
+        ":mcp_code_formatting_compliance_property_tests",
+        ":mcp_symbol_rename_property_tests",
+        ":mcp_func_extraction_property_tests",
+        ":mcp_module_reorg_property_tests",
+        ":mcp_pattern_application_property_tests",
+        ":mcp_code_optimization_property_tests",
+        ":mcp_project_config_property_tests",
+        ":mcp_project_structure_property_tests",
+        ":mcp_build_artifact_property_tests",
+        ":mcp_version_control_property_tests",
+        ":mcp_test_suite_property_tests",
+        ":mcp_build_system_property_tests",
+        ":mcp_compiler_output_property_tests",
+        ":mcp_testing_framework_property_tests",
+        ":mcp_doc_tool_property_tests",
+        ":mcp_sdf_format_tests",
+        ":mcp_named_tools_tests",
+        ":mcp_proof_carrying_tests",
+        ":mcp_module_specs_tests",
+        ":mcp_find_intent_tests",
+        ":mcp_refactor_tests",
+        ":mcp_deterministic_tests",
+        ":mcp_code_mode_tests",
+        ":mcp_e2e_integration_tests",
+        ":mcp_lsp_consistency_tests",
+        ":mcp_deterministic_execution_tests",
+    ],
+)
+
+# LSP provider tests
+cc_test(
+    name = "lsp_provider_tests",
+    srcs = ["tests/lsp/daemon_provider_test.cpp"],
+    copts = _COPTS,
+    deps = [
+        ":semantic_model",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
+)

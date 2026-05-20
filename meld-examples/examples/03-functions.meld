@@ -1,0 +1,34 @@
+// 03 — Functions
+// All functions require explicit return types. Use -> () for void.
+
+// Basic function
+fnc greet(name: string) -> string {
+    rtn "Hello, " + name
+}
+
+// Multiple parameters
+fnc add(a: int, b: int) -> int {
+    rtn a + b
+}
+
+// Void return — use ()
+fnc log(message: string) -> () {
+    println(message)
+}
+
+// Functions are first-class values
+val sum = add(3, 4)
+val msg = greet("world")
+
+// Pipeline operator — left-to-right composition
+fnc double(x: int) -> int {
+    rtn x * 2
+}
+
+val result = 5 |> double
+
+fnc main() -> () {
+    println(greet("Meld"))
+    println("add(3, 4) = " + add(3, 4))
+    println("double(5) = " + double(5))
+}

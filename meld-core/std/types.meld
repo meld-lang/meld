@@ -1,0 +1,9 @@
+// std/types.meld — Re-exports all built-in type kind definitions.
+//
+// Each type kind is defined in its own file under std/types/.
+
+pub use types.class
+pub use types.struct
+pub use types.enum
+pub use types.trait
+pub use types.effect

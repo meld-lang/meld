@@ -1,0 +1,13 @@
+// std/log.meld — Structured logging via effects
+
+@uses(Log)
+fnc log-debug(msg: string) -> () { Log.write("DEBUG", msg) }
+
+@uses(Log)
+fnc log-info(msg: string) -> () { Log.write("INFO", msg) }
+
+@uses(Log)
+fnc log-warn(msg: string) -> () { Log.write("WARN", msg) }
+
+@uses(Log)
+fnc log-error(msg: string) -> () { Log.write("ERROR", msg) }

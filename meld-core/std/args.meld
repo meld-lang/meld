@@ -1,0 +1,34 @@
+// std/args.meld — Command-line argument parsing
+
+@builtin
+effect Process {
+    fnc args() -> list
+    fnc env(name: string) -> Result
+    fnc exit(code: int) -> ()
+}
+
+// Check if a flag exists in args
+fnc has-flag(args: list, flag: string) -> bool {
+    rtn reduce(args, false, fnc(found: any, arg: any) -> any {
+        rtn when(found).then({ rtn true }).else({ rtn ("" + arg) == flag })
+    })
+}
+
+// Get positional arguments (non-flag items)
+fnc positional-args(args: list) -> list {
+    rtn filter(args, fnc(arg: any) -> bool {
+        rtn starts-with("" + arg, "--") == false
+    })
+}
+
+// Simple usage printer
+fnc print-usage(program: string, description: string, options: list) -> () {
+    println("Usage: " + program + " [OPTIONS]")
+    println("")
+    println(description)
+    println("")
+    println("Options:")
+    forEach(options, fnc(opt: any) -> () {
+        println("  " + opt)
+    })
+}

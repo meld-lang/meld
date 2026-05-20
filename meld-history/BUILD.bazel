@@ -1,0 +1,10 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "history",
+    srcs = glob(["src/*.cpp"]),
+    hdrs = glob(["include/meld/history/*.hpp"]),
+    includes = ["include"],
+)

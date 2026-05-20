@@ -1,0 +1,120 @@
+// std/test/cache/benchmark.meld - deterministic cache efficiency workloads.
+//
+// These are not timing benchmarks by themselves. They are stable workload
+// generators that let the interpreter, compiler, and future native runners
+// compare hit-rate, eviction, and maintenance behavior across implementations.
+
+imp std.cache
+
+struct CacheBenchmarkResult {
+    val name: string
+    val operations: int
+    val hits: int
+    val misses: int
+    val hit-rate: int
+    val size: int
+    val evictions: int
+    val checksum: int
+}
+
+fnc cache-bench-positive(value: int) -> int {
+    rtn when(value < 0).then({ rtn 0 - value }).else({ rtn value })
+}
+
+fnc cache-bench-next(seed: int) -> int {
+    rtn (seed * 1103515245 + 12345) % 2147483647
+}
+
+fnc cache-bench-result(name: string, cache: Cache, operations: int, checksum: int) -> CacheBenchmarkResult {
+    val stats = cache-stats(cache)
+    rtn CacheBenchmarkResult {
+        name = name,
+        operations = operations,
+        hits = stats.hits,
+        misses = stats.misses,
+        hit-rate = stats.hit-rate,
+        size = stats.size,
+        evictions = stats.evictions,
+        checksum = checksum
+    }
+}
+
+fnc cache-benchmark-touch(cache: Cache, key: int, checksum: int) -> int {
+    val found = cache-get(cache, key)
+    rtn when(type-of(found) == "unit").then({
+        cache-put(cache, key, key)
+        rtn checksum + key
+    }).else({
+        rtn checksum + found
+    })
+}
+
+fnc cache-benchmark-uniform(capacity: int, key-space: int, operations: int) -> CacheBenchmarkResult {
+    val cache = create-cache(capacity)
+    var seed = 1
+    var checksum = 0
+    var index = 0
+    val keys = cache-max(1, key-space)
+
+    loop-while({ rtn index < operations }, {
+        seed = cache-bench-next(seed)
+        val key = cache-bench-positive(seed) % keys
+        checksum = cache-benchmark-touch(cache, key, checksum)
+        index = index + 1
+    })
+
+    rtn cache-bench-result("uniform", cache, operations, checksum)
+}
+
+fnc cache-benchmark-hotset(capacity: int, hot-keys: int, cold-keys: int, operations: int) -> CacheBenchmarkResult {
+    val cache = create-cache(capacity)
+    var seed = 17
+    var checksum = 0
+    var index = 0
+    val hot = cache-max(1, hot-keys)
+    val cold = cache-max(1, cold-keys)
+
+    loop-while({ rtn index < operations }, {
+        seed = cache-bench-next(seed)
+        val lane = cache-bench-positive(seed) % 10
+        val key = when(lane < 8).then({
+            rtn cache-bench-positive(seed) % hot
+        }).else({
+            rtn hot + (cache-bench-positive(seed) % cold)
+        })
+        checksum = cache-benchmark-touch(cache, key, checksum)
+        index = index + 1
+    })
+
+    rtn cache-bench-result("hotset-80-20", cache, operations, checksum)
+}
+
+fnc cache-benchmark-scan-resistant(capacity: int, hot-keys: int, scan-keys: int, rounds: int) -> CacheBenchmarkResult {
+    val cache = create-cache(capacity)
+    val hot = cache-max(1, hot-keys)
+    val scan = cache-max(1, scan-keys)
+    var checksum = 0
+    var operations = 0
+    var round = 0
+
+    loop-while({ rtn round < rounds }, {
+        var hot-index = 0
+        loop-while({ rtn hot-index < hot }, {
+            checksum = cache-benchmark-touch(cache, hot-index, checksum)
+            operations = operations + 1
+            hot-index = hot-index + 1
+        })
+
+        var scan-index = 0
+        loop-while({ rtn scan-index < scan }, {
+            checksum = cache-benchmark-touch(cache, hot + scan-index + (round * scan), checksum)
+            operations = operations + 1
+            scan-index = scan-index + 1
+        })
+
+        round = round + 1
+    })
+
+    rtn cache-bench-result("scan-resistant", cache, operations, checksum)
+}
+

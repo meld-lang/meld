@@ -1,0 +1,63 @@
+// 04 — Type Definitions
+// struct, class, enum are library macros, not keywords.
+// Syntax: <kind> <name> [generics] { members }
+
+// ── Struct (value semantics, copy on assign) ──
+
+struct Point {
+    val x: float
+    val y: float
+}
+
+// ── Class (reference semantics, ARC-managed) ──
+
+class Person {
+    val name: string
+    var age: int
+}
+
+// ── Enum (algebraic data type) ──
+
+enum Color { Red, Green, Blue }
+
+enum Shape {
+    Circle(val radius: float),
+    Rectangle(val width: float, val height: float),
+    Point
+}
+
+// ── Generics ──
+
+struct Pair[T, U] {
+    val first: T
+    val second: U
+}
+
+// ── Type aliases and refinements ──
+
+type UserId -> int
+type Name -> string
+type PositiveInt -> int { it > 0 }
+
+// ── User-defined type kinds ──
+
+type data {
+    meta_set(self, "semantics", "value")
+}
+
+data Settings {
+    val theme: string
+    val font-size: int
+}
+
+// ── Initialization ──
+
+val origin = Point { x = 0.0, y = 0.0 }
+val alice = Person { name = "Alice", age = 30 }
+
+fnc main() -> () {
+    val p = Point { x = 1.5, y = 2.5 }
+    println("Point created: x=" + p.x)
+    val person = Person { name = "Alice", age = 30 }
+    println("Person: " + person.name + ", age " + person.age)
+}

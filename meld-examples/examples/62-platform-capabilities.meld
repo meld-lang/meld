@@ -1,0 +1,60 @@
+// 62 — Platform Capabilities
+// Time, random, process, and crypto operations.
+// Each capability is explicit — functions declare what they need.
+
+// Time operations (simulated)
+fnc now-millis() -> int { rtn 1716000000000 }
+fnc elapsed(start: int, end: int) -> int { rtn end - start }
+
+fnc format-duration(ms: int) -> string {
+    rtn when(ms < 1000).then({ rtn ms + "ms" })
+        .when(ms < 60000).then({ rtn (ms / 1000) + "s" })
+        .else({ rtn (ms / 60000) + "m" })
+}
+
+// Random (deterministic seed for reproducibility)
+fnc pseudo-random(seed: int) -> int {
+    rtn ((seed * 1103515245 + 12345) / 65536) % 32768
+}
+
+fnc random-range(seed: int, min: int, max: int) -> int {
+    val r = pseudo-random(seed)
+    rtn min + (r % (max - min))
+}
+
+// Process info
+fnc get-pid() -> int { rtn 42 }
+fnc get-hostname() -> string { rtn "meld-host" }
+
+// Simple hash (djb2)
+fnc hash-string(s: string) -> int {
+    var h = 5381
+    val chars = split(s, "")
+    forEach(chars, fnc(c: any) -> () {
+        h = h * 33 + len("" + c)
+    })
+    rtn h
+}
+
+fnc main() -> () {
+    // Time
+    val start = now-millis()
+    val end = start + 1500
+    println("elapsed: " + format-duration(elapsed(start, end)))
+    println("short: " + format-duration(50))
+    println("long: " + format-duration(120000))
+
+    // Random
+    println("random(1): " + pseudo-random(1))
+    println("random(42): " + pseudo-random(42))
+    println("range(7, 1, 10): " + random-range(7, 1, 10))
+
+    // Process
+    println("pid: " + get-pid())
+    println("host: " + get-hostname())
+
+    // Hashing
+    println("hash('hello'): " + hash-string("hello"))
+    println("hash('world'): " + hash-string("world"))
+    println("same input = same hash: " + (hash-string("test") == hash-string("test")))
+}

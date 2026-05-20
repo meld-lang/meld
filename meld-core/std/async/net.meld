@@ -1,0 +1,86 @@
+// std/async/net.meld - reactor-backed TCP streams
+//
+// The kernel exposes only nonblocking socket syscalls. Listener acceptance,
+// connection completion, stream reads, and stream writes remain pull-based
+// Pollable values in Meld.
+
+imp kernel
+imp std.async.core
+imp std.async.reactor
+
+struct TcpListener {
+    val fd: int
+}
+
+struct TcpStream {
+    val fd: int
+}
+
+fnc listen(host: string, port: int) -> TcpListener {
+    rtn TcpListener { fd = kernel.tcp-listen(host, port) }
+}
+
+fnc local-port(listener: TcpListener) -> int {
+    rtn kernel.tcp-local-port(listener.fd)
+}
+
+fnc accept(reactor: Reactor, listener: TcpListener) -> Pollable[TcpStream] {
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> any {
+            val fd = kernel.tcp-accept(listener.fd)
+            rtn when(is-nil(fd)).then({
+                register(reactor, listener.fd, readable(), ctx.waker)
+                rtn Pending()
+            }).else({
+                rtn Ready(TcpStream { fd = fd })
+            })
+        }
+    }
+}
+
+fnc connect(reactor: Reactor, host: string, port: int) -> Pollable[TcpStream] {
+    var started = false
+    var completed = false
+    var fd = -1
+
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> any {
+            rtn when(started == false).then({
+                fd = kernel.tcp-connect(host, port)
+                started = true
+                register(reactor, fd, writable(), ctx.waker)
+                rtn Pending()
+            }).else({
+                rtn when(kernel.tcp-connect-ready(fd)).then({
+                    completed = true
+                    rtn Ready(TcpStream { fd = fd })
+                }).else({
+                    register(reactor, fd, writable(), ctx.waker)
+                    rtn Pending()
+                })
+            })
+        },
+        cleanup-fn = fnc() -> () {
+            when(started && completed == false).then({
+                close-fd(reactor, fd)
+                completed = true
+            })
+        }
+    }
+}
+
+fnc read-stream(reactor: Reactor, stream: TcpStream, buffer-size: int) -> Pollable[string] {
+    rtn read-bytes(reactor, stream.fd, buffer-size)
+}
+
+fnc write-stream(reactor: Reactor, stream: TcpStream, data: string) -> Pollable[int] {
+    rtn write-bytes(reactor, stream.fd, data)
+}
+
+fnc close-stream(reactor: Reactor, stream: TcpStream) -> () {
+    close-fd(reactor, stream.fd)
+}
+
+fnc close-listener(reactor: Reactor, listener: TcpListener) -> () {
+    close-fd(reactor, listener.fd)
+}

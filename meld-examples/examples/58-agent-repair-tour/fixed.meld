@@ -1,0 +1,44 @@
+// 58 — Agent Repair Tour: FIXED version
+// Each error from broken.meld is resolved here.
+// Compare the two files to see the repair pattern.
+
+fnc add(a: int, b: int) -> int {
+    rtn a + b
+}
+
+fnc greet(name: string) -> string {
+    rtn "Hello, " + name
+}
+
+// FIX 5: define the missing function
+fnc fetch-data(url: string) -> Result {
+    rtn Ok("data from " + url)
+}
+
+// FIX 4: add explicit return
+fnc compute() -> int {
+    val x = 42
+    rtn x
+}
+
+fnc main() -> () {
+    // FIX 1: define variable before use
+    val x = "world"
+    println(x)
+
+    // FIX 2: correct argument count
+    val sum = add(1, 2)
+    println("sum = " + sum)
+
+    // FIX 3: consistent types in concatenation
+    val good = "hello " + "true"
+    println(good)
+
+    // FIX 4: function now returns properly
+    val result = compute()
+    println("result = " + result)
+
+    // FIX 5: function is now defined
+    val data = fetch-data("https://api.meld.dev")
+    println("data = " + unwrap(data))
+}

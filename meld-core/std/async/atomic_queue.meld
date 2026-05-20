@@ -1,0 +1,140 @@
+// std/async/atomic_queue.meld - bounded MPMC queue algorithm in Meld
+//
+// This follows the classic sequence-number bounded queue shape: producers and
+// consumers reserve positions with CAS, then publish slot readiness by updating
+// a per-slot sequence number. The only native operations are atomic integers.
+
+imp std.async.atomic
+
+struct AtomicQueuePop {
+    val found: bool
+    val value: any
+}
+
+struct AtomicQueueSlot {
+    val sequence: AtomicInt
+    var value: any
+}
+
+struct AtomicQueue {
+    val capacity: int
+    val enqueue-pos: AtomicInt
+    val dequeue-pos: AtomicInt
+    var slots: list
+}
+
+fnc atomic-queue-pop-empty() -> AtomicQueuePop {
+    rtn AtomicQueuePop { found = false, value = nil }
+}
+
+fnc atomic-queue-pop-value(value: any) -> AtomicQueuePop {
+    rtn AtomicQueuePop { found = true, value = value }
+}
+
+fnc atomic-queue-max(a: int, b: int) -> int {
+    rtn when(a > b).then({ rtn a }).else({ rtn b })
+}
+
+fnc atomic-queue-normalize-capacity(capacity: int) -> int {
+    rtn atomic-queue-max(1, capacity)
+}
+
+fnc create-atomic-queue(capacity: int) -> AtomicQueue {
+    val cap = atomic-queue-normalize-capacity(capacity)
+    val slots = []
+    var index = 0
+
+    loop-while({ rtn index < cap }, {
+        arr-push-mut(slots, AtomicQueueSlot {
+            sequence = atomic-int(index),
+            value = nil
+        })
+        index = index + 1
+    })
+
+    rtn AtomicQueue {
+        capacity = cap,
+        enqueue-pos = atomic-int(0),
+        dequeue-pos = atomic-int(0),
+        slots = slots
+    }
+}
+
+fnc atomic-queue-push(queue: AtomicQueue, value: any) -> bool {
+    var done = false
+    var pushed = false
+
+    loop-while({ rtn done == false }, {
+        val pos = atomic-load(queue.enqueue-pos)
+        val slot = queue.slots[pos % queue.capacity]
+        val seq = atomic-load(slot.sequence)
+        val diff = seq - pos
+
+        when(diff == 0).then({
+            val reserved = atomic-compare-exchange(queue.enqueue-pos, pos, pos + 1)
+            when(reserved.success).then({
+                slot.value = value
+                atomic-store(slot.sequence, pos + 1)
+                pushed = true
+                done = true
+            }).else({
+                yield-thread()
+            })
+        }).else({
+            when(diff < 0).then({
+                pushed = false
+                done = true
+            }).else({
+                yield-thread()
+            })
+        })
+    })
+
+    rtn pushed
+}
+
+fnc atomic-queue-pop(queue: AtomicQueue) -> AtomicQueuePop {
+    var done = false
+    var result = atomic-queue-pop-empty()
+
+    loop-while({ rtn done == false }, {
+        val pos = atomic-load(queue.dequeue-pos)
+        val slot = queue.slots[pos % queue.capacity]
+        val seq = atomic-load(slot.sequence)
+        val diff = seq - (pos + 1)
+
+        when(diff == 0).then({
+            val reserved = atomic-compare-exchange(queue.dequeue-pos, pos, pos + 1)
+            when(reserved.success).then({
+                val value = slot.value
+                slot.value = nil
+                atomic-store(slot.sequence, pos + queue.capacity)
+                result = atomic-queue-pop-value(value)
+                done = true
+            }).else({
+                yield-thread()
+            })
+        }).else({
+            when(diff < 0).then({
+                result = atomic-queue-pop-empty()
+                done = true
+            }).else({
+                yield-thread()
+            })
+        })
+    })
+
+    rtn result
+}
+
+fnc atomic-queue-destroy(queue: AtomicQueue) -> () {
+    var index = 0
+    loop-while({ rtn index < queue.capacity }, {
+        val slot = queue.slots[index]
+        atomic-destroy(slot.sequence)
+        index = index + 1
+    })
+
+    atomic-destroy(queue.enqueue-pos)
+    atomic-destroy(queue.dequeue-pos)
+}

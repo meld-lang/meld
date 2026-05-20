@@ -1,0 +1,65 @@
+// 61 — JSON Data
+// Encoding and decoding structured data as JSON strings.
+// Demonstrates serialization patterns without external libraries.
+
+// JSON encoding helpers
+fnc json-string(value: string) -> string { rtn "\"" + value + "\"" }
+fnc json-number(value: int) -> string { rtn "" + value }
+fnc json-bool(value: bool) -> string { rtn when(value).then({ rtn "true" }).else({ rtn "false" }) }
+fnc json-null() -> string { rtn "null" }
+
+fnc json-key-value(key: string, value: string) -> string {
+    rtn json-string(key) + ": " + value
+}
+
+// Build a JSON object from key-value pairs
+fnc json-object(pairs: list) -> string {
+    val inner = reduce(pairs, "", fnc(acc: any, pair: any) -> any {
+        rtn when(acc == "").then({ rtn "" + pair }).else({ rtn acc + ", " + pair })
+    })
+    rtn "{ " + inner + " }"
+}
+
+// Build a JSON array
+fnc json-array(items: list) -> string {
+    val inner = reduce(items, "", fnc(acc: any, item: any) -> any {
+        rtn when(acc == "").then({ rtn "" + item }).else({ rtn acc + ", " + item })
+    })
+    rtn "[" + inner + "]"
+}
+
+// Serialize a user to JSON
+fnc user-to-json(name: string, age: int, active: bool) -> string {
+    rtn json-object([
+        json-key-value("name", json-string(name)),
+        json-key-value("age", json-number(age)),
+        json-key-value("active", json-bool(active))
+    ])
+}
+
+fnc main() -> () {
+    // Primitive encoding
+    println(json-string("hello"))
+    println(json-number(42))
+    println(json-bool(true))
+    println(json-null())
+
+    // Object encoding
+    val user = user-to-json("Alice", 30, true)
+    println(user)
+
+    // Array encoding
+    val scores = json-array([json-number(95), json-number(87), json-number(92)])
+    println(scores)
+
+    // Nested structure
+    val response = json-object([
+        json-key-value("status", json-string("ok")),
+        json-key-value("count", json-number(2)),
+        json-key-value("users", json-array([
+            user-to-json("Alice", 30, true),
+            user-to-json("Bob", 25, false)
+        ]))
+    ])
+    println(response)
+}

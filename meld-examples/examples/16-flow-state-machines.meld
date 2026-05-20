@@ -1,0 +1,27 @@
+// 16 — State Machines
+// Model state transitions with structs and when/then/else.
+
+fnc transition(state: string, event: string) -> string {
+    rtn when(state == "idle").then({
+        rtn when(event == "start").then({ rtn "running" }).else({ rtn state })
+    }).when(state == "running").then({
+        rtn when(event == "pause").then({ rtn "paused" })
+            .when(event == "stop").then({ rtn "idle" })
+            .else({ rtn state })
+    }).when(state == "paused").then({
+        rtn when(event == "resume").then({ rtn "running" }).else({ rtn state })
+    }).else({ rtn state })
+}
+
+fnc main() -> () {
+    var state = "idle"
+    println("state: " + state)
+    state = transition(state, "start")
+    println("after start: " + state)
+    state = transition(state, "pause")
+    println("after pause: " + state)
+    state = transition(state, "resume")
+    println("after resume: " + state)
+    state = transition(state, "stop")
+    println("after stop: " + state)
+}

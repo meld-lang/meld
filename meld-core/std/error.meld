@@ -1,0 +1,40 @@
+// std/error.meld — Error Trait System
+// Provides a common interface for error handling with chaining and source tracking.
+
+trait Error {
+    fnc message() -> string
+    fnc description() -> string {
+        rtn this.message()
+    }
+    fnc source() -> any {
+        rtn nil
+    }
+}
+
+// Concrete error type for simple string errors
+struct SimpleError {
+    val msg: string
+    val src: any
+}
+
+fnc simple-error(msg: string) -> SimpleError {
+    rtn SimpleError { msg = msg, src = nil }
+}
+
+fnc simple-error-with-source(msg: string, source: any) -> SimpleError {
+    rtn SimpleError { msg = msg, src = source }
+}
+
+fnc error-message(e: SimpleError) -> string { rtn e.msg }
+fnc error-source(e: SimpleError) -> any { rtn e.src }
+
+// Format an error chain as a string
+fnc error-chain(e: any) -> string {
+    rtn when(e == nil).then({ rtn "" }).else({
+        val msg = e.msg
+        val src = e.src
+        rtn when(src == nil).then({ rtn msg }).else({
+            rtn msg + "\nCaused by: " + error-chain(src)
+        })
+    })
+}

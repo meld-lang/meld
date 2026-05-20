@@ -1,0 +1,11 @@
+fnc classify(n: int) -> string {
+    rtn when(n > 0).then({ rtn "positive" })
+        .when(n == 0).then({ rtn "zero" })
+        .else({ rtn "negative" })
+}
+
+fnc main() -> () {
+    println(classify(5))
+    println(classify(0))
+    println(classify(-3))
+}

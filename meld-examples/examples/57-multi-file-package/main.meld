@@ -1,0 +1,29 @@
+// 57 — Multi-File Package
+// A complete package with multiple source files, imports, and a manifest.
+// Run: meld-runner examples/57-multi-file-package/main.meld
+
+imp types57
+imp helpers57
+
+fnc main() -> () {
+    // Use types from types57
+    val user = User-new("Alice", "alice@meld.dev")
+    println("user: " + user.format())
+
+    val admin = User-new("Bob", "bob@meld.dev")
+    println("admin: " + admin.format())
+
+    // Use helpers from helpers57
+    val greeting = greet(user.name)
+    println(greeting)
+
+    val validated = validate-email(user.email)
+    println("email valid: " + unwrap(validated))
+
+    val bad = validate-email("no-at-sign")
+    println("bad email: " + bad.error)
+
+    // Combine modules
+    val users = [user, admin]
+    println("total users: " + len(users))
+}

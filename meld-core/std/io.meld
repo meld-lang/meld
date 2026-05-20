@@ -1,0 +1,35 @@
+// std/io.meld — File I/O via effects
+
+@uses(FileSystem)
+fnc read-file(path: string) -> Result {
+    val content = FileSystem.read(path)
+    rtn when(content == "").then({ rtn Err("failed to read: " + path) }).else({ rtn Ok(content) })
+}
+
+@uses(FileSystem)
+fnc write-file(path: string, content: string) -> Result {
+    val ok = FileSystem.write(path, content)
+    rtn when(ok).then({ rtn Ok(path) }).else({ rtn Err("failed to write: " + path) })
+}
+
+@uses(FileSystem)
+fnc file-exists(path: string) -> bool {
+    rtn FileSystem.exists(path)
+}
+
+@uses(FileSystem)
+fnc remove-file(path: string) -> bool {
+    rtn FileSystem.remove(path)
+}
+
+@uses(FileSystem)
+fnc read-lines(path: string) -> Result {
+    val content = FileSystem.read(path)
+    rtn when(content == "").then({ rtn Err("failed to read: " + path) })
+        .else({ rtn Ok(split(content, "\n")) })
+}
+
+@uses(IO)
+fnc read-stdin-line() -> string {
+    rtn IO.read-line()
+}

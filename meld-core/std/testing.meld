@@ -1,0 +1,36 @@
+// std/testing.meld — Test utilities
+// Provides structured assertions and test organization.
+
+fnc assert-eq(actual: any, expected: any, msg: string) -> () {
+    assert(actual == expected, msg + ": expected " + expected + " but got " + actual)
+}
+
+fnc assert-neq(actual: any, expected: any, msg: string) -> () {
+    assert(actual != expected, msg + ": expected not " + expected + " but got " + actual)
+}
+
+fnc assert-true(value: bool, msg: string) -> () {
+    assert(value, msg + ": expected true")
+}
+
+fnc assert-false(value: bool, msg: string) -> () {
+    assert(value == false, msg + ": expected false")
+}
+
+fnc assert-ok(result: any, msg: string) -> () {
+    assert(result.is-ok, msg + ": expected Ok but got Err: " + result.error)
+}
+
+fnc assert-err(result: any, msg: string) -> () {
+    assert(result.is-ok == false, msg + ": expected Err but got Ok")
+}
+
+fnc describe(name: string, tests: fnc() -> ()) -> () {
+    println("  " + name)
+    tests()
+}
+
+fnc it(description: string, test: fnc() -> ()) -> () {
+    test()
+    println("    ✓ " + description)
+}

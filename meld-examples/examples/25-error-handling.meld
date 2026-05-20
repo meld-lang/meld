@@ -1,0 +1,24 @@
+// 25 — Error Handling
+// Result type for recoverable errors, assert for invariants.
+
+fnc divide(a: int, b: int) -> Result {
+    rtn when(b == 0).then({ rtn Err("division by zero") }).else({ rtn Ok(a / b) })
+}
+
+fnc parse-positive(n: int) -> Result {
+    rtn when(n > 0).then({ rtn Ok(n) }).else({ rtn Err("not positive: " + n) })
+}
+
+fnc main() -> () {
+    val r1 = divide(10, 2)
+    println("10/2 = " + unwrap(r1))
+
+    val r2 = divide(5, 0)
+    println("5/0 error = " + r2.error)
+
+    val r3 = parse-positive(42)
+    println("parse 42 = " + unwrap(r3))
+
+    val r4 = parse-positive(-1)
+    println("parse -1 error = " + r4.error)
+}

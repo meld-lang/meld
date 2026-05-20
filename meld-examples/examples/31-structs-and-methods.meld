@@ -1,0 +1,35 @@
+// 31 — Structs and Methods
+// Demonstrates struct creation, field access, mutation, and method dispatch.
+
+fnc to-string(v: Vec2) -> string {
+    rtn "(" + v.x + ", " + v.y + ")"
+}
+
+fnc magnitude-squared(v: Vec2) -> int {
+    rtn v.x * v.x + v.y * v.y
+}
+
+fnc add(a: Vec2, b: Vec2) -> Vec2 {
+    rtn Vec2 { x = a.x + b.x, y = a.y + b.y }
+}
+
+fnc main() -> () {
+    // Creation and field access
+    val origin = Vec2 { x = 0, y = 0 }
+    val point = Vec2 { x = 3, y = 4 }
+    println("origin = " + origin.to-string())
+    println("point = " + point.to-string())
+
+    // Method dispatch (obj.method() calls method(obj))
+    println("magnitude^2 = " + point.magnitude-squared())
+
+    // Operator overloading (+ calls add)
+    val sum = point + Vec2 { x = 1, y = 1 }
+    println("sum = " + sum.to-string())
+
+    // Field mutation
+    var mutable = Vec2 { x = 0, y = 0 }
+    mutable.x = 10
+    mutable.y = 20
+    println("mutable = " + mutable.to-string())
+}

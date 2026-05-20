@@ -1,0 +1,77 @@
+// 52 — Parsing
+// Scanner and parser patterns for structured text.
+// Demonstrates cursor-based parsing without regex.
+
+// Character predicates
+fnc is-digit(c: string) -> bool {
+    rtn when(c == "0").then({ rtn true })
+        .when(c == "1").then({ rtn true })
+        .when(c == "2").then({ rtn true })
+        .when(c == "3").then({ rtn true })
+        .when(c == "4").then({ rtn true })
+        .when(c == "5").then({ rtn true })
+        .when(c == "6").then({ rtn true })
+        .when(c == "7").then({ rtn true })
+        .when(c == "8").then({ rtn true })
+        .when(c == "9").then({ rtn true })
+        .else({ rtn false })
+}
+
+fnc is-alpha(c: string) -> bool {
+    rtn when(c >= "a").then({ rtn c <= "z" }).else({ rtn false })
+}
+
+// Parse an integer from a string
+fnc parse-int-simple(s: string) -> Result {
+    rtn when(len(s) == 0).then({ rtn Err("empty input") }).else({
+        var i = 0
+        var valid = true
+        forEach([0], fnc(unused: any) -> () {
+            // Check first char is digit
+            val first = substr(s, 0, 1)
+            when(is-digit(first) == false).ifTrue({ valid = false })
+        })
+        rtn when(valid == false).then({ rtn Err("not a number: " + s) })
+            .else({ rtn Ok(s) })
+    })
+}
+
+// Tokenize a simple expression like "123+456"
+fnc tokenize(input: string) -> list {
+    val tokens = []
+    var pos = 0
+    val n = len(input)
+    // Simple: split on operators
+    val parts = split(input, "+")
+    rtn map(parts, fnc(part: any) -> any { rtn part })
+}
+
+// Parse key=value pairs
+fnc parse-kv(input: string) -> Result {
+    val parts = split(input, "=")
+    rtn when(len(parts) < 2)
+        .then({ rtn Err("missing '=' in: " + input) })
+        .else({ rtn Ok(parts) })
+}
+
+fnc main() -> () {
+    // Character predicates
+    println("is-digit('5') = " + is-digit("5"))
+    println("is-digit('x') = " + is-digit("x"))
+
+    // Integer parsing
+    val r1 = parse-int-simple("42")
+    println("parse '42' = " + unwrap(r1))
+    val r2 = parse-int-simple("abc")
+    println("parse 'abc' = " + r2.error)
+
+    // Tokenization
+    val tokens = tokenize("10+20+30")
+    println("tokens: " + tokens)
+
+    // Key-value parsing
+    val kv1 = parse-kv("name=Alice")
+    println("kv 'name=Alice' = " + unwrap(kv1))
+    val kv2 = parse-kv("broken")
+    println("kv 'broken' = " + kv2.error)
+}

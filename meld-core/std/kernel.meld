@@ -1,0 +1,261 @@
+// std/kernel.meld — Kernel Primitive API
+//
+// The kernel module documents the lowest-level operations that the Meld
+// runtime provides. In the current interpreter, these are stubs — the
+// actual control flow, collections, and I/O are handled by ~22 native
+// C++ builtins registered directly in the interpreter.
+//
+// This file describes the FUTURE kernel design: a minimal set of
+// primitives (suspend/resume/mark) from which all higher-level
+// abstractions can be built. This design is not yet implemented.
+//
+// CURRENT REALITY:
+//   - Control flow: when/then/else/ifTrue/ifFalse (native builtins)
+//   - Collections: forEach/map/filter/reduce (native builtins)
+//   - I/O: println/print (native builtins)
+//   - Strings: len/replace/split/substr/str-find (native builtins)
+//   - The kernel.* functions below are stubs/aspirational
+//
+// SAFETY: kernel.* operations bypass the effect system. Only std/ library
+// code should call them directly. User code uses higher-level abstractions
+// (effects, std.async, std.os) that provide safety guarantees.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// CONTROL FLOW
+// ═══════════════════════════════════════════════════════════════════════════
+
+// kernel.suspend(delimiter, callback) -> value
+//
+// Capture the current continuation up to `delimiter` and pass it to
+// `callback`. This is the universal control-flow primitive — async/await,
+// generators, exceptions, and algebraic effects are all built on it.
+//
+// PROTOCOL CONTRACT:
+//   - Delimited: captures up to the nearest matching kernel.mark(delimiter).
+//     If no matching mark exists, panics with "unhandled effect".
+//   - One-shot by default: resuming a continuation consumes it. Attempting
+//     to resume a consumed continuation panics.
+//   - Multi-shot: use kernel.clone-continuation(k) to create a resumable
+//     copy (future primitive, not yet implemented).
+//   - Untyped: the continuation carries no type information. The resumed
+//     value's type is the caller's responsibility.
+//   - Thread-local: continuations cannot cross thread boundaries. Attempting
+//     to resume a continuation from a different thread panics.
+//   - Not serializable: continuations reference live stack frames and cannot
+//     be persisted or sent over the network.
+//   - FFI boundary: continuations cannot cross native_call boundaries.
+//     Suspending inside a kernel.call callback is undefined behavior.
+//   - Captured scopes are immutable snapshots. Mutations to variables after
+//     suspension are not visible when the continuation is resumed.
+//
+// The callback receives a Continuation object and decides:
+//   - Resume it immediately (generators yield/next)
+//   - Resume it later (async: scheduler parks the fiber)
+//   - Discard it (exceptions: unwind without resuming)
+//
+// Returns: whatever value the continuation is resumed with.
+//
+// Example:
+//   kernel.suspend("scheduler", fnc(k: Continuation) -> () {
+//       // k is the frozen execution state
+//       // store it, resume it later with kernel.resume(k, value)
+//   })
+//
+// STATUS: not yet implemented (panics at runtime)
+fnc suspend(delimiter: string, callback: fnc(k: Continuation) -> ()) -> any
+
+// kernel.resume(continuation, value) -> value
+//
+// Resume a previously captured continuation, passing `value` back to the
+// suspension point. Execution continues from where kernel.suspend was called.
+//
+// Panics if the continuation is invalid or already consumed (one-shot).
+//
+// STATUS: not yet implemented (panics at runtime)
+fnc resume(k: Continuation, value: any) -> any
+
+// kernel.mark(delimiter, handler)
+//
+// Push a delimiter onto the continuation stack. When kernel.suspend is
+// called with a matching delimiter, the continuation up to this mark is
+// captured and passed to handler.
+//
+// This is the foundation for `handle` blocks in the effect system.
+// The handler receives the captured continuation and may resume, discard,
+// or store it.
+//
+// STATUS: not yet implemented (panics at runtime)
+fnc mark(delimiter: string, handler: fnc(k: Continuation) -> any) -> ()
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ASYNC KERNEL PRIMITIVES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// These are the narrow native hooks required by std.async. The scheduler,
+// reactor registry, waker routing, futures, streams, and combinators stay in
+// pure Meld. Native code owns only OS multiplexing handles and raw syscall
+// boundaries.
+
+// Create an OS I/O multiplexer. On Linux, driver is "epoll"; future targets
+// may map to "kqueue" or "iocp".
+fnc reactor-create(driver: string) -> int
+
+// Register, update, or remove readiness interest for a file descriptor.
+// Waker identity is represented as scheduler/task/generation integers so the
+// library can keep wakers pointer-sized and scope-owned.
+fnc reactor-register(handle: int, fd: int, interest: int, scheduler-id: int, task-id: int, generation: int) -> ()
+fnc reactor-reregister(handle: int, fd: int, interest: int, scheduler-id: int, task-id: int, generation: int) -> ()
+fnc reactor-unregister(handle: int, fd: int) -> ()
+
+// Poll the OS multiplexer. The return value is a list of readiness records
+// owned by the kernel bridge and consumed by std.async.reactor.
+fnc reactor-poll(handle: int, timeout-ms: int) -> list
+
+// Return nil when fd is not currently ready for interest.
+fnc reactor-ready(handle: int, fd: int, interest: int) -> any
+
+// Nonblocking fd operations. fd-write starts writing at byte offset.
+fnc fd-read(fd: int, max-bytes: int) -> string?
+fnc fd-write(fd: int, data: string, offset: int) -> int?
+fnc fd-close(fd: int) -> ()
+
+// Create a nonblocking pipe as [read-fd, write-fd]. This is a minimal OS
+// descriptor primitive used by std.async tests and IPC-style library code.
+fnc fd-pipe() -> list
+
+// Nonblocking TCP socket primitives. std.async.net owns accept/connect
+// readiness and stream composition in Meld.
+fnc tcp-listen(host: string, port: int) -> int
+fnc tcp-local-port(fd: int) -> int
+fnc tcp-accept(fd: int) -> int?
+fnc tcp-connect(host: string, port: int) -> int
+fnc tcp-connect-ready(fd: int) -> bool
+
+// Create, arm, and cancel a one-shot reactor-readable timer handle. The
+// timeout is relative milliseconds from the arm call.
+fnc timer-create() -> int
+fnc timer-arm(handle: int, timeout-ms: int) -> ()
+fnc timer-cancel(handle: int) -> ()
+
+// Atomic integer handles. These are the native memory-ordering boundary used
+// by pure-Meld lock-free queues; queue algorithms remain in std.async.
+fnc atomic-create(initial: int) -> int
+fnc atomic-load(handle: int) -> int
+fnc atomic-store(handle: int, value: int) -> ()
+fnc atomic-exchange(handle: int, value: int) -> int
+fnc atomic-fetch-add(handle: int, value: int) -> int
+fnc atomic-compare-exchange(handle: int, expected: int, desired: int) -> any
+fnc atomic-destroy(handle: int) -> ()
+
+// Thread metadata/cooperation primitives. `thread-yield` is used only inside
+// bounded CAS retry loops; worker scheduling policy remains in std.async.
+fnc thread-yield() -> ()
+fnc cpu-count() -> int
+
+// Re-enqueue a task whose waker fired.
+fnc wake-task(scheduler-id: int, task-id: int, generation: int) -> ()
+
+// Drain queued wake events for a scheduler. Each wake record must expose
+// task-id and generation fields to std.async.scheduler.
+fnc take-wakes(scheduler-id: int) -> list
+
+// Best-effort explicit zeroing for transient buffers and secret material.
+fnc secure-zero(value: any) -> ()
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FOREIGN FUNCTION INTERFACE
+// ═══════════════════════════════════════════════════════════════════════════
+
+// kernel.call(function_name, ...args) -> any
+//
+// Call a native C function by name. The function must be registered in the
+// runtime's native function table or loaded via kernel.load.
+//
+// Used by std/os/*.meld to access OS syscalls (epoll, kqueue, fork, etc.)
+// and by the string interpolation system (__interpolate-*__).
+//
+// Example:
+//   kernel.call("printf", "hello %s\n", name)
+//   kernel.call("isolate_spawn", module, args)
+fnc call(name: string, args: list) -> any
+
+// kernel.load(path) -> handle
+//
+// Load a native shared library (.so/.dylib/.dll) and return a handle.
+// Functions from the library can then be called via kernel.call with
+// the handle as the first argument.
+fnc load(path: string) -> any
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EVALUATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+// kernel.eval(expr) -> value
+//
+// Evaluate a Meld expression (AST node or quoted form) in the current scope.
+fnc eval(expr: any) -> any
+
+// kernel.apply(func, args) -> value
+//
+// Apply a function to a list of arguments.
+fnc apply(func: any, args: List[any]) -> any
+
+// kernel.quote(expr) -> expr
+//
+// Return the expression unevaluated (as data). Used for metaprogramming.
+fnc quote(expr: any) -> any
+
+// kernel.lambda(params, body, scope) -> function
+//
+// Create a closure capturing the given scope.
+fnc lambda(params: any, body: any, scope: any) -> any
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCOPE & BINDING
+// ═══════════════════════════════════════════════════════════════════════════
+
+// kernel.def(name, value) -> value
+//
+// Define a new binding in the current scope. Equivalent to `val`.
+fnc def(name: string, value: any) -> any
+
+// kernel.set(name, value) -> value
+//
+// Mutate an existing binding. Equivalent to assignment on `var`.
+fnc set(name: string, value: any) -> any
+
+// kernel.lookup(name) -> value
+//
+// Look up a binding by name in the current scope chain.
+fnc lookup(name: string) -> any
+
+// ═══════════════════════════════════════════════════════════════════════════
+// METADATA
+// ═══════════════════════════════════════════════════════════════════════════
+
+// kernel.meta-set(obj, key, value) -> obj
+//
+// Attach hidden metadata to any object without changing its value or behavior.
+// Used for provenance tracking, type annotations, debug info.
+fnc meta-set(obj: any, key: string, value: any) -> any
+
+// kernel.meta-get(obj, key) -> value?
+//
+// Retrieve metadata previously attached to an object.
+fnc meta-get(obj: any, key: string) -> any?
+
+// kernel.meta-has(obj, key) -> bool
+//
+// Check if metadata exists for the given key.
+fnc meta-has(obj: any, key: string) -> bool
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Continuation — an opaque frozen execution state.
+// Created by kernel.suspend, consumed by kernel.resume.
+// One-shot by default; multi-shot requires explicit cloning.
+struct Continuation {
+    // opaque — no user-accessible fields
+}

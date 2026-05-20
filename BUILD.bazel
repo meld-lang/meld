@@ -1,0 +1,26 @@
+# Root BUILD file for Meld workspace
+
+package(default_visibility = ["//visibility:public"])
+
+# Workspace-level configuration and utilities
+
+# Export configuration files for other packages to use
+exports_files([
+    ".bazelrc",
+    ".bazelversion",
+    "MODULE.bazel",
+])
+
+# Filegroup for documentation
+filegroup(
+    name = "docs",
+    srcs = glob(
+        [
+            "*.md",
+            "docs/**/*",
+        ],
+        allow_empty = True,
+    ),
+)
+
+# Use 'bazel build //...' to build all packages

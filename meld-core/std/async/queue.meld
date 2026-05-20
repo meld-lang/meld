@@ -1,0 +1,106 @@
+// std/async/queue.meld - fixed-capacity async runtime queues
+//
+// This is the first scheduler data-structure step toward Tokio-style worker
+// queues: push/pop are index updates over a preallocated buffer instead of
+// copying list tails on every dequeue.
+
+struct QueuePop {
+    val found: bool
+    val value: any
+}
+
+struct RingQueue {
+    val capacity: int
+    var head: int
+    var tail: int
+    var size: int
+    var buffer: list
+}
+
+fnc normalize-queue-capacity(capacity: int) -> int {
+    rtn when(capacity <= 0).then({ rtn 1 }).else({ rtn capacity })
+}
+
+fnc create-ring-queue(capacity: int) -> RingQueue {
+    val normalized = normalize-queue-capacity(capacity)
+    rtn RingQueue {
+        capacity = normalized,
+        head = 0,
+        tail = 0,
+        size = 0,
+        buffer = arr-new(normalized, nil)
+    }
+}
+
+fnc ring-empty(queue: RingQueue) -> bool {
+    rtn queue.size == 0
+}
+
+fnc ring-full(queue: RingQueue) -> bool {
+    rtn queue.size >= queue.capacity
+}
+
+fnc ring-size(queue: RingQueue) -> int {
+    rtn queue.size
+}
+
+fnc ring-pop-empty() -> QueuePop {
+    rtn QueuePop { found = false, value = nil }
+}
+
+fnc ring-pop-value(value: any) -> QueuePop {
+    rtn QueuePop { found = true, value = value }
+}
+
+fnc ring-next(queue: RingQueue, index: int) -> int {
+    rtn (index + 1) % queue.capacity
+}
+
+fnc ring-push(queue: RingQueue, value: any) -> bool {
+    rtn when(ring-full(queue)).then({
+        rtn false
+    }).else({
+        arr-set-mut(queue.buffer, queue.tail, value)
+        queue.tail = ring-next(queue, queue.tail)
+        queue.size = queue.size + 1
+        rtn true
+    })
+}
+
+fnc ring-pop(queue: RingQueue) -> QueuePop {
+    rtn when(ring-empty(queue)).then({
+        rtn ring-pop-empty()
+    }).else({
+        val value = arr-get(queue.buffer, queue.head)
+        arr-set-mut(queue.buffer, queue.head, nil)
+        queue.head = ring-next(queue, queue.head)
+        queue.size = queue.size - 1
+        rtn ring-pop-value(value)
+    })
+}
+
+fnc ring-steal-count(queue: RingQueue) -> int {
+    rtn when(queue.size <= 1).then({
+        rtn queue.size
+    }).else({
+        rtn queue.size / 2
+    })
+}
+
+fnc ring-move-some(source: RingQueue, target: RingQueue, count: int) -> int {
+    var moved = 0
+
+    loop-while({ rtn moved < count && ring-empty(source) == false && ring-full(target) == false }, {
+        val item = ring-pop(source)
+        when(item.found).then({
+            ring-push(target, item.value)
+            moved = moved + 1
+        })
+    })
+
+    rtn moved
+}
+
+fnc ring-steal-half(source: RingQueue, target: RingQueue) -> int {
+    rtn ring-move-some(source, target, ring-steal-count(source))
+}

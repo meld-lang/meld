@@ -1,0 +1,13 @@
+fnc describe(c: Circle) -> string { rtn "circle r=" + c.radius }
+fnc describe(r: Rect) -> string { rtn "rect " + r.w + "x" + r.h }
+fnc area(c: Circle) -> float { rtn 3.14 * c.radius * c.radius }
+fnc area(r: Rect) -> float { rtn r.w * r.h }
+
+fnc main() -> () {
+    val c = Circle { radius = 5.0 }
+    val r = Rect { w = 3.0, h = 4.0 }
+    println(describe(c))
+    println(describe(r))
+    println(area(c))
+    println(area(r))
+}

@@ -1,0 +1,23 @@
+// 14 — Type Extensions
+// Add methods to existing types via free functions.
+
+fnc length-squared(v: Vec2) -> float {
+    rtn v.x * v.x + v.y * v.y
+}
+
+fnc scale(v: Vec2, factor: float) -> Vec2 {
+    rtn Vec2 { x = v.x * factor, y = v.y * factor }
+}
+
+fnc to-string(v: Vec2) -> string {
+    rtn "(" + v.x + ", " + v.y + ")"
+}
+
+fnc main() -> () {
+    val v = Vec2 { x = 3.0, y = 4.0 }
+    println("v = " + v.to-string())
+    println("length^2 = " + v.length-squared())
+
+    val scaled = scale(v, 2.0)
+    println("scaled = " + scaled.to-string())
+}

@@ -1,0 +1,13 @@
+package(default_visibility = ["//visibility:public"])
+
+# The 'meld' binary is the CLI
+alias(
+    name = "meld",
+    actual = "//meld-cli:meld",
+)
+
+# Example files (for reference/testing)
+filegroup(
+    name = "examples",
+    srcs = glob(["examples/*.meld", "examples/**/*.meld"]),
+)

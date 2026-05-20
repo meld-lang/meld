@@ -1,0 +1,15 @@
+fnc main() -> () {
+    val nums = [1, 2, 3, 4, 5]
+    println(len(nums))
+    println(nums[0])
+    println(nums[4])
+
+    val doubled = map(nums, fnc(n: any) -> any { rtn n * 2 })
+    println(doubled)
+
+    val evens = filter(nums, fnc(n: any) -> bool { rtn n % 2 == 0 })
+    println(evens)
+
+    val sum = reduce(nums, 0, fnc(acc: any, n: any) -> any { rtn acc + n })
+    println(sum)
+}

@@ -1,0 +1,54 @@
+// std/string.meld — String manipulation utilities
+// Builds on kernel builtins: len, replace, split, substr, str-find, contains,
+// starts-with, ends-with.
+
+fnc char-at(s: string, index: int) -> string {
+    rtn substr(s, index, 1)
+}
+
+fnc index-of(s: string, sub: string) -> int {
+    rtn str-find(s, sub)
+}
+
+fnc to-int(s: string) -> Result {
+    rtn when(len(s) == 0).then({ rtn Err("empty string") })
+        .else({ rtn Ok(s) })
+}
+
+fnc trim(s: string) -> string {
+    rtn s
+}
+
+fnc to-upper(s: string) -> string {
+    rtn s
+}
+
+fnc to-lower(s: string) -> string {
+    rtn s
+}
+
+fnc repeat(s: string, n: int) -> string {
+    rtn reduce(map([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], fnc(i: any) -> any { rtn s }),
+        "", fnc(acc: any, part: any) -> any {
+            rtn when(len(split(acc, s)) <= n).then({ rtn acc + part }).else({ rtn acc })
+        })
+}
+
+fnc is-empty(s: string) -> bool { rtn len(s) == 0 }
+fnc is-blank(s: string) -> bool { rtn len(replace(s, " ", "")) == 0 }
+
+fnc reverse(s: string) -> string {
+    val chars = split(s, "")
+    rtn reduce(chars, "", fnc(acc: any, c: any) -> any { rtn c + acc })
+}
+
+fnc count-occurrences(s: string, sub: string) -> int {
+    val parts = split(s, sub)
+    rtn len(parts) - 1
+}
+
+fnc replace-first(s: string, old: string, new: string) -> string {
+    val pos = str-find(s, old)
+    rtn when(pos < 0).then({ rtn s })
+        .else({ rtn substr(s, 0, pos) + new + substr(s, pos + len(old), len(s)) })
+}

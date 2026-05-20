@@ -1,0 +1,206 @@
+{
+  "Function": {
+    "prefix": "fnc",
+    "body": [
+      "fnc ${1:name}(${2:params}) -> ${3:int} {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "Meld function declaration"
+  },
+  "Main Function": {
+    "prefix": "main",
+    "body": [
+      "fnc main() -> () {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "Meld main entry point"
+  },
+  "Struct": {
+    "prefix": "struct",
+    "body": [
+      "struct ${1:Name} {",
+      "\t${2:val field: int}",
+      "}"
+    ],
+    "description": "Meld struct declaration"
+  },
+  "Struct with Trait": {
+    "prefix": "structtrait",
+    "body": [
+      "struct ${1:Name} : ${2:Trait} {",
+      "\t${3:val field: int}",
+      "}"
+    ],
+    "description": "Meld struct with trait conformance"
+  },
+  "Trait": {
+    "prefix": "trait",
+    "body": [
+      "trait ${1:Name} {",
+      "\tfnc ${2:method}(${3}) -> ${4:int}",
+      "}"
+    ],
+    "description": "Meld trait declaration"
+  },
+  "Class": {
+    "prefix": "class",
+    "body": [
+      "class ${1:Name} {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "Meld class declaration"
+  },
+  "Enum": {
+    "prefix": "enum",
+    "body": [
+      "enum ${1:Name} {",
+      "\t${2:Variant1},",
+      "\t${3:Variant2}",
+      "}"
+    ],
+    "description": "Meld enum declaration"
+  },
+  "If": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "If statement"
+  },
+  "If-Else": {
+    "prefix": "ife",
+    "body": [
+      "if ${1:condition} {",
+      "\t${2}",
+      "} else {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "If-else statement"
+  },
+  "Match": {
+    "prefix": "match",
+    "body": [
+      "match ${1:value} {",
+      "\t${2:pattern} => ${3:result},",
+      "\t_ => ${0:default}",
+      "}"
+    ],
+    "description": "Match expression"
+  },
+  "For Loop": {
+    "prefix": "for",
+    "body": [
+      "for ${1:item} in ${2:collection} {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "For-in loop"
+  },
+  "While Loop": {
+    "prefix": "while",
+    "body": [
+      "while ${1:condition} {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "While loop"
+  },
+  "Val": {
+    "prefix": "val",
+    "body": "val ${1:name}: ${2:int} = ${0}",
+    "description": "Immutable variable declaration"
+  },
+  "Var": {
+    "prefix": "var",
+    "body": "var ${1:name}: ${2:int} = ${0}",
+    "description": "Mutable variable declaration"
+  },
+  "Import": {
+    "prefix": "imp",
+    "body": "imp ${0:std.module}",
+    "description": "Import module"
+  },
+  "Import Destructuring": {
+    "prefix": "impd",
+    "body": "imp { ${1:symbol} } = ${0:std.module}",
+    "description": "Import with destructuring"
+  },
+  "Type Alias": {
+    "prefix": "type",
+    "body": "type ${1:Name} <-> ${0:int}",
+    "description": "Type alias declaration"
+  },
+  "Effect": {
+    "prefix": "effect",
+    "body": [
+      "effect ${1:Name} {",
+      "\tfnc ${2:operation}(${3:params}) -> ${4:RetType}",
+      "}"
+    ],
+    "description": "Meld effect declaration"
+  },
+  "Println": {
+    "prefix": "println",
+    "body": "println(${0})",
+    "description": "Print line"
+  },
+  "Println Interpolated": {
+    "prefix": "printlni",
+    "body": "println(`${0}`)",
+    "description": "Print line with string interpolation"
+  },
+  "Test Function": {
+    "prefix": "test",
+    "body": [
+      "@test",
+      "fnc test_${1:name}() {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "Test function"
+  },
+  "Generic Function": {
+    "prefix": "fncg",
+    "body": [
+      "fnc ${1:name}[${2:T} : ${3:Trait}](${4:param}: ${2:T}) -> ${5:int} {",
+      "\t${0}",
+      "}"
+    ],
+    "description": "Generic trait-constrained function"
+  },
+  "Handle": {
+    "prefix": "handle",
+    "body": [
+      "val ${1:result} = handle({ ${2:computation} },",
+      "\t${3:EffectName} {",
+      "\t\tfnc ${4:op}(${5:params}) {",
+      "\t\t\trtn ${0}",
+      "\t\t}",
+      "\t}",
+      ")"
+    ],
+    "description": "Meld handle expression"
+  },
+  "Assert That": {
+    "prefix": "assert",
+    "body": [
+      "assert-that(${1:value}).is-equal-to(${2:expected})"
+    ],
+    "description": "Fluent assertion"
+  },
+  "Type Kind": {
+    "prefix": "type",
+    "body": [
+      "type ${1:name} {",
+      "\tmeta_set(self, \"${2:key}\", \"${3:value}\")",
+      "}"
+    ],
+    "description": "Define a new type kind"
+  }
+}

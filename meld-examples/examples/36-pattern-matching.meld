@@ -1,0 +1,32 @@
+// 36 — Pattern Matching
+// Value-based matching with match() and when/then/else chains.
+
+fnc day-name(n: int) -> string {
+    rtn match(n, [
+        [1, { rtn "Monday" }],
+        [2, { rtn "Tuesday" }],
+        [3, { rtn "Wednesday" }],
+        [4, { rtn "Thursday" }],
+        [5, { rtn "Friday" }],
+        [6, { rtn "Saturday" }],
+        [7, { rtn "Sunday" }]
+    ])
+}
+
+fnc fizzbuzz(n: int) -> string {
+    rtn when(n % 15 == 0).then({ rtn "FizzBuzz" })
+        .when(n % 3 == 0).then({ rtn "Fizz" })
+        .when(n % 5 == 0).then({ rtn "Buzz" })
+        .else({ rtn "" + n })
+}
+
+fnc main() -> () {
+    println("Day 1 = " + day-name(1))
+    println("Day 5 = " + day-name(5))
+    println("Day 7 = " + day-name(7))
+
+    println("fizzbuzz(3) = " + fizzbuzz(3))
+    println("fizzbuzz(5) = " + fizzbuzz(5))
+    println("fizzbuzz(15) = " + fizzbuzz(15))
+    println("fizzbuzz(7) = " + fizzbuzz(7))
+}

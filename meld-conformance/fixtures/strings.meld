@@ -1,0 +1,9 @@
+fnc main() -> () {
+    val s = "hello world"
+    println(len(s))
+    println(contains(s, "world"))
+    println(starts-with(s, "hello"))
+    println(ends-with(s, "world"))
+    println(replace(s, "world", "meld"))
+    println(split(s, " "))
+}

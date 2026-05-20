@@ -1,0 +1,99 @@
+// std/test/property.meld — Property-Based Testing
+// forall quantification with generators and shrinking.
+
+struct PropertyConfig {
+    val iterations: int
+    val seed: int
+}
+
+fnc default-config() -> PropertyConfig {
+    rtn PropertyConfig { iterations = 100, seed = 0 }
+}
+
+struct PropertyResult {
+    val passed: bool
+    val counterexample: any?
+    val iterations: int
+}
+
+// ── Core: forall ──
+
+// Run a property check: generate random inputs, test the predicate.
+// NOTE: requires Random effect (not yet enforced statically)
+fnc forall[T](gen: fnc() -> T, predicate: fnc(val: T) -> bool, config: PropertyConfig) -> PropertyResult {
+    fnc step(i: int) -> PropertyResult {
+        rtn when(i >= config.iterations).then({
+            rtn PropertyResult { passed = true, counterexample = nil, iterations = i }
+        }).else({
+            val input = gen()
+            val result = predicate(input)
+            rtn when(result == false).then({
+                rtn PropertyResult { passed = false, counterexample = input, iterations = i + 1 }
+            }).else({
+                rtn step(i + 1)
+            })
+        })
+    }
+    rtn step(0)
+}
+
+// ── Generators ──
+
+// Random integer in [min, max] inclusive
+fnc gen-int(min: int, max: int) -> int {
+    rtn Random.int-range(min, max)
+}
+
+// Random boolean
+fnc gen-bool() -> bool {
+    rtn Random.int-range(0, 1) == 0
+}
+
+// Random string of length [0, max-length]
+fnc gen-string(max-length: int) -> string {
+    val target-len = gen-int(0, max-length)
+    fnc build(i: int, result: string) -> string {
+        rtn when(i >= target-len).then({ rtn result }).else({
+            val ch = gen-int(32, 126)
+            rtn build(i + 1, result + to-string(ch))
+        })
+    }
+    rtn build(0, "")
+}
+
+// Random float in [min, max]
+fnc gen-float(min: float, max: float) -> float {
+    rtn Random.float-range(min, max)
+}
+
+// Random element from a list
+fnc gen-one-of[T](items: list) -> any {
+    val idx = gen-int(0, len(items) - 1)
+    rtn items[idx]
+}
+
+// Random list of length [0, max-length] using element generator
+fnc gen-list[T](elem-gen: fnc() -> T, max-length: int) -> list {
+    val target-len = gen-int(0, max-length)
+    fnc build(i: int, result: list) -> list {
+        rtn when(i >= target-len).then({ rtn result }).else({
+            rtn build(i + 1, arr-push(result, elem-gen()))
+        })
+    }
+    rtn build(0, [])
+}
+
+// ── Shrinking ──
+
+// Shrink integers toward zero
+fnc shrink-int(value: int) -> list {
+    rtn when(value == 0).then({ rtn [] }).else({
+        rtn [0, value / 2]
+    })
+}
+
+// ── Helpers ──
+
+fnc abs(n: int) -> int {
+    rtn when(n < 0).then({ rtn 0 - n }).else({ rtn n })
+}

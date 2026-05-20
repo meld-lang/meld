@@ -1,0 +1,51 @@
+// std/async/isolate.meld - poll-based isolate IPC
+//
+// Process creation is still a kernel concern. Once an isolate exposes an IPC
+// descriptor, std.async handles communication through the reactor.
+
+imp kernel
+imp std.async.core
+imp std.async.reactor
+
+struct IsolateRef {
+    val pid: int
+    val ipc-fd: int
+}
+
+fnc spawn-isolate(module: string, args: List[string]) -> IsolateRef {
+    val fd = kernel.call("isolate_spawn", module, args)
+    val pid = kernel.call("isolate_pid", fd)
+    rtn IsolateRef { pid = pid, ipc-fd = fd }
+}
+
+fnc isolate-from-fd(pid: int, fd: int) -> IsolateRef {
+    rtn IsolateRef { pid = pid, ipc-fd = fd }
+}
+
+fnc send-to-isolate(reactor: Reactor, iso: IsolateRef, data: string) -> Pollable[int] {
+    rtn then(write-bytes(reactor, iso.ipc-fd, data), fnc(count: int) -> Pollable[int] {
+        zero-buffer(data)
+        rtn ready(count)
+    })
+}
+
+fnc recv-from-isolate(reactor: Reactor, iso: IsolateRef, max-bytes: int) -> Pollable[string] {
+    rtn read-bytes(reactor, iso.ipc-fd, max-bytes)
+}
+
+fnc shutdown(reactor: Reactor, iso: IsolateRef) -> Pollable[int] {
+    rtn send-to-isolate(reactor, iso, "__shutdown__")
+}
+
+fnc is-alive(iso: IsolateRef) -> bool {
+    rtn kernel.call("isolate_is_alive", iso.pid)
+}
+
+fnc kill(iso: IsolateRef) -> () {
+    kernel.call("isolate_kill", iso.pid)
+    kernel.fd-close(iso.ipc-fd)
+}
+
+fnc close-isolate(reactor: Reactor, iso: IsolateRef) -> () {
+    close-fd(reactor, iso.ipc-fd)
+}

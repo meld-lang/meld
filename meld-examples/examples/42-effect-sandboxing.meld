@@ -1,0 +1,48 @@
+// 42 — Algebraic Effects: Sandboxing Demo
+// Shows how effects are intercepted, mocked, and restricted.
+
+fnc greet(name: string) -> () {
+    Console.println("Hello, " + name + "!")
+}
+
+fnc dangerous-operation() -> () {
+    Console.println("writing file...")
+    FileSystem.write("/tmp/data", "content")
+}
+
+fnc main() -> () {
+    // 1. Normal execution
+    println("=== Normal execution ===")
+    greet("World")
+
+    // 2. Mock Console — capture output instead of printing
+    println("=== Mocked Console ===")
+    var log = []
+    handle Console {
+        fnc println(msg: string) -> () {
+            log = arr-push(log, msg)
+        }
+    }
+    greet("Agent-1")
+    greet("Agent-2")
+
+    // Restore real console
+    handle Console {
+        fnc println(msg: string) -> () {
+            println(msg)
+        }
+    }
+    println("Captured " + len(log) + " messages:")
+    println("  [1] " + log[0])
+    println("  [2] " + log[1])
+
+    // 3. Sandbox — restrict which effects are allowed
+    println("=== Sandboxed (Console only) ===")
+    sandbox(["Console"], {
+        Console.println("This is allowed")
+    })
+
+    // This would fail: FileSystem not in allowed list
+    // sandbox(["Console"], { dangerous-operation() })
+    println("FileSystem.write blocked by sandbox (uncomment to see error)")
+}

@@ -1,0 +1,58 @@
+// std/async/timer.meld - reactor-backed timers
+//
+// Timers are readable reactor handles supplied by the kernel. The scheduling
+// policy stays in Meld: sleep is just another Pollable.
+
+imp kernel
+imp std.async.core
+imp std.async.reactor
+
+struct Timer {
+    val handle: int
+}
+
+fnc create-timer() -> Timer {
+    rtn Timer { handle = kernel.timer-create() }
+}
+
+fnc arm-timer(timer: Timer, timeout-ms: int) -> () {
+    kernel.timer-arm(timer.handle, timeout-ms)
+}
+
+fnc cancel-timer(timer: Timer) -> () {
+    kernel.timer-cancel(timer.handle)
+}
+
+fnc sleep(reactor: Reactor, timeout-ms: int) -> Pollable[()] {
+    val timer = create-timer()
+    var armed = false
+    var cancelled = false
+
+    fnc cleanup() -> () {
+        when(cancelled == false).then({
+            cancelled = true
+            cancel-timer(timer)
+        })
+    }
+
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> any {
+            when(armed == false).then({
+                arm-timer(timer, timeout-ms)
+                armed = true
+            })
+
+            val event = kernel.reactor-ready(reactor.handle, timer.handle, readable())
+            rtn when(is-nil(event)).then({
+                register(reactor, timer.handle, readable(), ctx.waker)
+                rtn Pending()
+            }).else({
+                cleanup()
+                rtn Ready(nil)
+            })
+        },
+        cleanup-fn = fnc() -> () {
+            cleanup()
+        }
+    }
+}

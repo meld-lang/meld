@@ -1,0 +1,23 @@
+// 12 — Enums and Variants
+// Tagged unions via structs with type fields.
+
+fnc make-circle(r: float) -> Shape {
+    rtn Shape { kind = "circle", radius = r, width = 0.0, height = 0.0 }
+}
+
+fnc make-rect(w: float, h: float) -> Shape {
+    rtn Shape { kind = "rect", radius = 0.0, width = w, height = h }
+}
+
+fnc area(s: Shape) -> float {
+    rtn when(s.kind == "circle").then({ rtn 3.14 * s.radius * s.radius })
+        .else({ rtn s.width * s.height })
+}
+
+fnc main() -> () {
+    val c = make-circle(5.0)
+    val r = make-rect(3.0, 4.0)
+    println("circle area = " + c.area())
+    println("rect area = " + r.area())
+    println("circle kind = " + c.kind)
+}

@@ -1,0 +1,68 @@
+"""
+Meld workspace module configuration for Bazel 9 with bzlmod.
+"""
+
+module(
+    name = "meld_workspace",
+    version = "0.1.0",
+)
+
+# Bazel dependencies (updated for Bazel 9 compatibility)
+bazel_dep(name = "rules_cc", version = "0.2.14")
+bazel_dep(name = "rules_python", version = "1.7.0")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+
+# C++ dependencies
+bazel_dep(name = "boost.spirit", version = "1.83.0.bcr.4")
+bazel_dep(name = "boost.variant", version = "1.83.0.bcr.4")
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
+bazel_dep(name = "catch2", version = "3.13.0")
+bazel_dep(name = "nlohmann_json", version = "3.12.0.bcr.1")
+
+# LLVM project — provides Core, IRReader, BitWriter, OrcJIT, etc.
+# Commented out: only used by //compiler package, not available in BCR at 18.1.8
+# bazel_dep(name = "llvm-project", version = "18.1.8")
+
+# RapidCheck — C++ property-based testing library (from BCR)
+bazel_dep(name = "rapidcheck", version = "2023.12.14")
+
+# Patch rapidcheck BUILD.bazel to fix glob allow_empty issue with include/**/*.cpp
+single_version_override(
+    module_name = "rapidcheck",
+    version = "2023.12.14",
+    patches = ["//third_party:rapidcheck_glob_fix.patch"],
+    patch_strip = 1,
+)
+
+# Patch boost.spirit BCR package to include x3/nonterminal/detail/rule.hpp in hdrs
+# The BCR BUILD.bazel excludes this header, causing "undeclared inclusion" errors
+single_version_override(
+    module_name = "boost.spirit",
+    version = "1.83.0.bcr.4",
+    patches = ["//third_party:boost_spirit_hdrs.patch"],
+    patch_strip = 1,
+)
+
+# RTTR (Runtime Type Reflection) - not in BCR, using git_override
+bazel_dep(name = "rttr", version = "0.9.6")
+git_override(
+    module_name = "rttr",
+    remote = "https://github.com/rttrorg/rttr.git",
+    tag = "v0.9.6",
+    patch_cmds = [
+        "printf 'module(name = \"rttr\", version = \"0.9.6\")\\nbazel_dep(name = \"rules_cc\", version = \"0.0.9\")\\nbazel_dep(name = \"platforms\", version = \"0.0.10\")\\n' > MODULE.bazel",
+        "printf 'load(\"@rules_cc//cc:defs.bzl\", \"cc_library\")\\ncc_library(\\n    name = \"rttr\",\\n    srcs = glob([\"src/rttr/**/*.cpp\"]),\\n    hdrs = glob([\"src/rttr/**/*.h\"]) + glob([\"src/rttr/registration\", \"src/rttr/type\"]),\\n    includes = [\"src\"],\\n    defines = [\"RTTR_DLL_EXPORTS\"],\\n    copts = select({\\n        \"@platforms//os:windows\": [\"/std:c++17\"],\\n        \"//conditions:default\": [\"-std=c++17\"],\\n    }),\\n    visibility = [\"//visibility:public\"],\\n)\\n' > BUILD.bazel",
+        "printf '#ifndef RTTR_VERSION_H_\\n#define RTTR_VERSION_H_\\n#define RTTR_VERSION_MAJOR 0\\n#define RTTR_VERSION_MINOR 9\\n#define RTTR_VERSION_PATCH 6\\n#define RTTR_VERSION 906\\n#define RTTR_VERSION_STR \"0.9.6\"\\n#endif\\n' > src/rttr/detail/base/version.h",
+        "python3 -c \"import pathlib; p=pathlib.Path('src/rttr/variant.h'); p.write_text('#include <string>\\n'+p.read_text())\"",
+    ],
+    patch_cmds_win = [
+        "python -c \"import pathlib; q=chr(34); pathlib.Path('MODULE.bazel').write_text('module(name = '+q+'rttr'+q+', version = '+q+'0.9.6'+q+')\\nbazel_dep(name = '+q+'rules_cc'+q+', version = '+q+'0.0.9'+q+')\\nbazel_dep(name = '+q+'platforms'+q+', version = '+q+'0.0.10'+q+')\\n')\"",
+        "python -c \"import pathlib; q=chr(34); pathlib.Path('BUILD.bazel').write_text('load('+q+'@rules_cc//cc:defs.bzl'+q+', '+q+'cc_library'+q+')\\ncc_library(\\n    name = '+q+'rttr'+q+',\\n    srcs = glob(['+q+'src/rttr/**/*.cpp'+q+']),\\n    hdrs = glob(['+q+'src/rttr/**/*.h'+q+']) + glob(['+q+'src/rttr/registration'+q+', '+q+'src/rttr/type'+q+']),\\n    includes = ['+q+'src'+q+'],\\n    defines = ['+q+'RTTR_DLL_EXPORTS'+q+'],\\n    copts = select({\\n        '+q+'@platforms//os:windows'+q+': ['+q+'/std:c++17'+q+'],\\n        '+q+'//conditions:default'+q+': ['+q+'-std=c++17'+q+'],\\n    }),\\n    visibility = ['+q+'//visibility:public'+q+'],\\n)\\n')\"",
+        "python -c \"import pathlib; q=chr(34); pathlib.Path('src/rttr/detail/base/version.h').write_text('#ifndef RTTR_VERSION_H_\\n#define RTTR_VERSION_H_\\n#define RTTR_VERSION_MAJOR 0\\n#define RTTR_VERSION_MINOR 9\\n#define RTTR_VERSION_PATCH 6\\n#define RTTR_VERSION 906\\n#define RTTR_VERSION_STR '+q+'0.9.6'+q+'\\n#endif\\n')\"",
+        "python -c \"import pathlib; p=pathlib.Path('src/rttr/variant.h'); p.write_text('#include <string>\\n'+p.read_text())\"",
+    ],
+)
+
+# Compile commands for clangd/LSP support
+

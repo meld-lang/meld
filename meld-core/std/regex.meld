@@ -1,0 +1,13 @@
+// std/regex.meld — Regular expressions via kernel.call
+
+fnc regex-test(pattern: string, input: string) -> bool {
+    rtn kernel.call("regex.match", pattern, input)
+}
+
+fnc regex-find-all(pattern: string, input: string) -> list {
+    rtn kernel.call("regex.find-all", pattern, input)
+}
+
+fnc regex-replace(pattern: string, input: string, replacement: string) -> string {
+    rtn kernel.call("regex.replace", pattern, input, replacement)
+}

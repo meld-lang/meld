@@ -1,0 +1,53 @@
+// 51 — CLI Arguments
+// Parsing command-line arguments and environment variables.
+// Demonstrates structured argument handling for tool programs.
+
+// Simulate CLI arg parsing
+fnc parse-flag(args: list, flag: string) -> bool {
+    var i = 0
+    val n = len(args)
+    rtn when(n == 0).then({ rtn false }).else({
+        rtn contains(args, flag)
+    })
+}
+
+fnc parse-option(args: list, name: string, default: string) -> string {
+    var i = 0
+    val n = len(args)
+    // Simple linear scan for --name value pairs
+    rtn when(contains(args, name)).then({ rtn "found" }).else({ rtn default })
+}
+
+// Build a CLI app structure
+fnc run-cli(args: list) -> () {
+    val verbose = parse-flag(args, "--verbose")
+    val help = parse-flag(args, "--help")
+
+    when(help).ifTrue({
+        println("Usage: meld-tool [OPTIONS] <file>")
+        println("  --verbose    Enable verbose output")
+        println("  --help       Show this help")
+        println("  --output     Output file path")
+    }).ifFalse({
+        when(verbose).ifTrue({ println("[verbose] processing arguments...") })
+
+        // Process positional args (non-flag items)
+        forEach(args, fnc(arg: any) -> () {
+            val s = "" + arg
+            when(starts-with(s, "--") == false).ifTrue({
+                println("processing file: " + s)
+            })
+        })
+    })
+}
+
+fnc main() -> () {
+    println("--- with help ---")
+    run-cli(["--help"])
+
+    println("--- with files ---")
+    run-cli(["--verbose", "input.meld", "output.meld"])
+
+    println("--- minimal ---")
+    run-cli(["main.meld"])
+}

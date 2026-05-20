@@ -1,0 +1,75 @@
+// 55 — Explicit Allocation
+// Memory allocation is visible and controlled.
+// No hidden heap — allocators are passed explicitly.
+
+// Fixed-capacity buffer: stack-allocated, no heap
+fnc FixedBuf-new(capacity: int) -> FixedBuf {
+    rtn FixedBuf { items = [], capacity = capacity, len = 0 }
+}
+
+fnc push(buf: FixedBuf, item: any) -> Result {
+    rtn when(buf.len >= buf.capacity)
+        .then({ rtn Err("buffer full: capacity " + buf.capacity) })
+        .else({
+            val new-items = push(buf.items, item)
+            rtn Ok(FixedBuf { items = new-items, capacity = buf.capacity, len = buf.len + 1 })
+        })
+}
+
+fnc get(buf: FixedBuf, index: int) -> Result {
+    rtn when(index < 0).then({ rtn Err("negative index") })
+        .when(index >= buf.len).then({ rtn Err("index out of bounds: " + index) })
+        .else({ rtn Ok(buf.items[index]) })
+}
+
+fnc remaining(buf: FixedBuf) -> int { rtn buf.capacity - buf.len }
+
+// Arena-style allocator: allocate many, free all at once
+fnc Arena-new(size: int) -> Arena {
+    rtn Arena { allocations = [], max-size = size, used = 0 }
+}
+
+fnc arena-alloc(a: Arena, name: string, size: int) -> Result {
+    rtn when(a.used + size > a.max-size)
+        .then({ rtn Err("arena exhausted: need " + size + " have " + (a.max-size - a.used)) })
+        .else({
+            val new-allocs = push(a.allocations, name)
+            rtn Ok(Arena { allocations = new-allocs, max-size = a.max-size, used = a.used + size })
+        })
+}
+
+fnc arena-reset(a: Arena) -> Arena {
+    rtn Arena { allocations = [], max-size = a.max-size, used = 0 }
+}
+
+fnc main() -> () {
+    // Fixed buffer with capacity 3
+    println("--- fixed buffer ---")
+    var buf = FixedBuf-new(3)
+    println("remaining: " + remaining(buf))
+
+    buf = unwrap(push(buf, "a"))
+    buf = unwrap(push(buf, "b"))
+    buf = unwrap(push(buf, "c"))
+    println("remaining: " + remaining(buf))
+    println("get(1): " + unwrap(get(buf, 1)))
+
+    // Overflow is an explicit error
+    val overflow = push(buf, "d")
+    println("overflow: " + overflow.error)
+
+    // Arena allocator
+    println("--- arena ---")
+    var arena = Arena-new(100)
+    arena = unwrap(arena-alloc(arena, "header", 20))
+    arena = unwrap(arena-alloc(arena, "body", 60))
+    println("used: " + arena.used + "/" + arena.max-size)
+
+    // Exhaust the arena
+    val too-big = arena-alloc(arena, "huge", 50)
+    println("too big: " + too-big.error)
+
+    // Reset frees everything
+    arena = arena-reset(arena)
+    println("after reset: " + arena.used + "/" + arena.max-size)
+}

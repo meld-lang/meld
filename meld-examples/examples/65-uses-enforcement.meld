@@ -1,0 +1,39 @@
+// 65 — @uses Static Enforcement
+// Meld is pure-by-default: functions cannot perform effects
+// unless they declare them with @uses.
+// This is checked at COMPILE TIME — not runtime.
+
+// Pure function — no effects, no annotation needed
+fnc add(a: int, b: int) -> int {
+    rtn a + b
+}
+
+// Declared effects — only Console is allowed
+@uses(Console)
+fnc greet(name: string) -> () {
+    Console.println("Hello, " + name + "!")
+}
+
+// Multiple effects declared
+@uses(Console, FileSystem)
+fnc sync-files(src: string, dst: string) -> () {
+    Console.println("Syncing " + src + " -> " + dst)
+    FileSystem.write(dst, "content")
+}
+
+// COMPILE ERROR if you uncomment this:
+// fnc sneaky() -> () {
+//     Console.println("no @uses = denied!")  // E6001
+// }
+
+// main() is implicitly @uses(*) — all effects allowed
+fnc main() -> () {
+    println("Pure computation: " + add(2, 3))
+    greet("World")
+    println("")
+    println("Rules:")
+    println("  • No @uses = pure function (no effects allowed)")
+    println("  • @uses(Console) = only Console effects")
+    println("  • main() = all effects allowed")
+    println("  • Violations caught at compile time (E6001)")
+}

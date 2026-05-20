@@ -1,0 +1,22 @@
+// 06 — Null Safety
+// Option type prevents null pointer errors.
+
+fnc find(arr: list, target: int) -> Option {
+    rtn when(len(arr) == 0).then({ rtn None })
+        .when(arr[0] == target).then({ rtn Some(0) })
+        .else({ rtn None })
+}
+
+fnc main() -> () {
+    val found = find([10, 20, 30], 10)
+    println("found.is-some = " + found.is-some)
+    println("value = " + unwrap(found))
+
+    val missing = find([10, 20, 30], 99)
+    println("missing.is-some = " + missing.is-some)
+
+    // Safe access via unwrap
+    val name = Some("Alice")
+    println("name = " + unwrap(name))
+    println("None.is-some = " + None.is-some)
+}

@@ -1,0 +1,2 @@
+# meld-compiler requires @llvm-project which is not available in BCR
+meld-compiler

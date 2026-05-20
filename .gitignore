@@ -1,0 +1,38 @@
+# Bazel
+bazel-*
+MODULE.bazel.lock
+
+# IDE
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.hypothesis/
+.pytest_cache/
+
+# Meld daemon runtime
+.meld/
+
+# Kiro settings (local)
+.kiro/settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+
+# Node
+node_modules/
+*.vsix
+
+# Generated
+java_output/
+output/
+CODEX_*.md

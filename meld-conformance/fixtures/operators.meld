@@ -1,0 +1,12 @@
+fnc to-string(v: Vec2) -> string { rtn "(" + v.x + ", " + v.y + ")" }
+fnc add(a: Vec2, b: Vec2) -> Vec2 { rtn Vec2 { x = a.x + b.x, y = a.y + b.y } }
+fnc sub(a: Vec2, b: Vec2) -> Vec2 { rtn Vec2 { x = a.x - b.x, y = a.y - b.y } }
+
+fnc main() -> () {
+    val a = Vec2 { x = 10, y = 20 }
+    val b = Vec2 { x = 3, y = 7 }
+    val sum = a + b
+    val diff = a - b
+    println(sum.to-string())
+    println(diff.to-string())
+}

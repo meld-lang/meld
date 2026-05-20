@@ -1,0 +1,22 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+# meldi — Meld MicroVM Init System (PID 1)
+# Statically linked, sub-1MB binary for Firecracker MicroVMs
+cc_binary(
+    name = "meldi",
+    srcs = [
+        "main.cpp",
+        "vfs_mount.cpp",
+        "signal_handler.cpp",
+        "net_configure.cpp",
+        "vsock.cpp",
+        "app_exec.cpp",
+    ] + glob(["include/**/*.hpp"]),
+    includes = ["include"],
+    linkopts = select({
+        "@platforms//os:linux": ["-static"],
+        "//conditions:default": [],
+    }),
+)

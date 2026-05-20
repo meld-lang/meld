@@ -1,0 +1,37 @@
+// std/test/bdd.meld — BDD Testing (Given/When/Then)
+// Methods in type body. Fluent chaining via self return.
+
+struct Scenario {
+    val name: string
+    var step-count: int
+    var passed: bool
+}
+
+fnc scenario(name: string) -> Scenario {
+    println("Scenario: " + name)
+    rtn Scenario { name = name, step-count = 0, passed = true }
+}
+
+@extension
+struct Scenario {
+    fnc given(description: string) -> Scenario {
+        println("  Given " + description)
+        rtn Scenario { name = self.name, step-count = self.step-count + 1, passed = self.passed }
+    }
+
+    fnc when(description: string) -> Scenario {
+        println("  When " + description)
+        rtn Scenario { name = self.name, step-count = self.step-count + 1, passed = self.passed }
+    }
+
+    fnc then(description: string) -> Scenario {
+        println("  Then " + description)
+        rtn Scenario { name = self.name, step-count = self.step-count + 1, passed = self.passed }
+    }
+
+    fnc run() -> Scenario {
+        self.passed.ifTrue { println("  PASS: " + self.name) }
+        self.passed.ifFalse { println("  FAIL: " + self.name) }
+        rtn self
+    }
+}

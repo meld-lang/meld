@@ -1,0 +1,9 @@
+// types57.meld — Type definitions for the multi-file package example.
+
+fnc User-new(name: string, email: string) -> User {
+    rtn User { name = name, email = email }
+}
+
+fnc format(u: User) -> string {
+    rtn u.name + " <" + u.email + ">"
+}

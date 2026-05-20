@@ -1,0 +1,23 @@
+// 37 — Template Strings and Effects
+// Backtick strings with interpolation and the effect system.
+
+fnc greet(name: string, age: int) -> string {
+    rtn `Hello ${name}, you are ${age} years old!`
+}
+
+fnc main() -> () {
+    // Template string interpolation
+    val lang = "Meld"
+    val version = 1
+    println(`Welcome to ${lang} v${version}`)
+
+    // Function returning template string
+    println(greet("Alice", 30))
+
+    // Expression interpolation
+    val x = 7
+    println(`${x} * ${x} = ${x * x}`)
+
+    // Effect system
+    Console.println("printed via Console effect")
+}

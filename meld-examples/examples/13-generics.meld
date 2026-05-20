@@ -1,0 +1,22 @@
+// 13 — Generics
+// Functions work on any type (dynamically typed at runtime).
+
+fnc identity(x: any) -> any { rtn x }
+fnc first(arr: list) -> any { rtn arr[0] }
+fnc last(arr: list) -> any { rtn arr[len(arr) - 1] }
+fnc contains(arr: list, target: any) -> bool { rtn arr[0] == target }
+
+fnc main() -> () {
+    // identity works on any type
+    println("int: " + identity(42))
+    println("str: " + identity("hello"))
+    println("bool: " + identity(true))
+
+    // Generic array operations
+    val nums = [10, 20, 30]
+    println("first = " + first(nums))
+    println("last = " + last(nums))
+
+    val words = ["alpha", "beta", "gamma"]
+    println("first word = " + first(words))
+}

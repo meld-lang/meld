@@ -1,0 +1,16 @@
+// 01 — Hello World
+// The simplest Meld program. fnc main() is auto-invoked.
+
+fnc greet(name: string) -> string {
+    rtn "Hello, " + name + "!"
+}
+
+fnc add(a: int, b: int) -> int {
+    rtn a + b
+}
+
+fnc main() -> () {
+    println(greet("World"))
+    println("2 + 3 = " + add(2, 3))
+    println("Welcome to Meld.")
+}

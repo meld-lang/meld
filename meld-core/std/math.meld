@@ -1,0 +1,40 @@
+// std/math.meld — Mathematical functions and constants
+
+val PI = 3.14159265358979
+val TAU = 6.28318530717959
+val E = 2.71828182845905
+
+fnc abs(n: int) -> int {
+    rtn when(n < 0).then({ rtn -n }).else({ rtn n })
+}
+
+fnc abs-float(n: float) -> float {
+    rtn when(n < 0.0).then({ rtn -n }).else({ rtn n })
+}
+
+fnc min(a: int, b: int) -> int {
+    rtn when(a < b).then({ rtn a }).else({ rtn b })
+}
+
+fnc max(a: int, b: int) -> int {
+    rtn when(a > b).then({ rtn a }).else({ rtn b })
+}
+
+fnc clamp(value: int, lo: int, hi: int) -> int {
+    rtn max(lo, min(value, hi))
+}
+
+fnc sign(n: int) -> int {
+    rtn when(n > 0).then({ rtn 1 }).when(n < 0).then({ rtn -1 }).else({ rtn 0 })
+}
+
+fnc is-even(n: int) -> bool { rtn n % 2 == 0 }
+fnc is-odd(n: int) -> bool { rtn n % 2 != 0 }
+
+fnc gcd(a: int, b: int) -> int {
+    rtn when(b == 0).then({ rtn abs(a) }).else({ rtn gcd(b, a % b) })
+}
+
+fnc lcm(a: int, b: int) -> int {
+    rtn when(a == 0).then({ rtn 0 }).else({ rtn abs(a) * (abs(b) / gcd(a, b)) })
+}

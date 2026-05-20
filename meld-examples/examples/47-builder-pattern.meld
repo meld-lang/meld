@@ -1,0 +1,59 @@
+// 47 — Builder Pattern
+// Construct complex objects step-by-step with defaults and chaining.
+// Demonstrates field defaults, Self-returning methods, and fluent APIs.
+
+// Config with sensible defaults
+fnc Config-default() -> Config {
+    rtn Config { host = "localhost", port = 8080, debug = false, max-conn = 100 }
+}
+
+fnc with-host(c: Config, h: string) -> Config {
+    rtn Config { host = h, port = c.port, debug = c.debug, max-conn = c.max-conn }
+}
+
+fnc with-port(c: Config, p: int) -> Config {
+    rtn Config { host = c.host, port = p, debug = c.debug, max-conn = c.max-conn }
+}
+
+fnc with-debug(c: Config, d: bool) -> Config {
+    rtn Config { host = c.host, port = c.port, debug = d, max-conn = c.max-conn }
+}
+
+fnc with-max-conn(c: Config, n: int) -> Config {
+    rtn Config { host = c.host, port = c.port, debug = c.debug, max-conn = n }
+}
+
+fnc describe(c: Config) -> string {
+    rtn c.host + ":" + c.port + " (debug=" + c.debug + ", max=" + c.max-conn + ")"
+}
+
+// Request builder
+fnc Request-new(method: string, path: string) -> Request {
+    rtn Request { method = method, path = path, body = "" }
+}
+
+fnc with-body(r: Request, b: string) -> Request {
+    rtn Request { method = r.method, path = r.path, body = b }
+}
+
+fnc describe(r: Request) -> string {
+    rtn r.method + " " + r.path + " [" + r.body + "]"
+}
+
+fnc main() -> () {
+    // Builder with chaining
+    val cfg = Config-default()
+        .with-host("api.meld.dev")
+        .with-port(443)
+        .with-debug(true)
+    println("config: " + cfg.describe())
+
+    // Defaults are useful
+    val dev = Config-default().with-debug(true)
+    println("dev: " + dev.describe())
+
+    // Request builder
+    val req = Request-new("POST", "/users")
+        .with-body("{\"name\": \"Alice\"}")
+    println("request: " + req.describe())
+}

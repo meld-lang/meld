@@ -1,0 +1,44 @@
+// std/collections.meld — Collection type interfaces
+// These are trait declarations for the built-in collection types.
+// Actual implementations are provided by the runtime.
+
+trait List {
+    fnc add(item: any) -> ()
+    fnc remove(index: int) -> any
+    fnc clear() -> ()
+    fnc get(index: int) -> any
+    fnc size() -> int
+    fnc is-empty() -> bool
+    fnc push(item: any) -> ()
+    fnc pop() -> any
+}
+
+trait Map {
+    fnc put(key: any, value: any) -> ()
+    fnc get(key: any) -> any
+    fnc remove(key: any) -> any
+    fnc contains-key(key: any) -> bool
+    fnc size() -> int
+    fnc is-empty() -> bool
+    fnc keys() -> list
+    fnc values() -> list
+}
+
+trait Set {
+    fnc add(item: any) -> ()
+    fnc remove(item: any) -> bool
+    fnc contains(item: any) -> bool
+    fnc size() -> int
+    fnc is-empty() -> bool
+}
+
+trait Queue {
+    fnc push-back(item: any) -> ()
+    fnc push-front(item: any) -> ()
+    fnc pop-front() -> any
+    fnc pop-back() -> any
+    fnc front() -> any
+    fnc back() -> any
+    fnc size() -> int
+    fnc is-empty() -> bool
+}

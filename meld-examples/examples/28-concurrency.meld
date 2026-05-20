@@ -1,0 +1,24 @@
+// 28 — Concurrency Patterns (Simulated)
+// Demonstrates async-style patterns using closures.
+
+fnc make-future(value: any) -> Future {
+    rtn Future { resolved = true, value = value }
+}
+
+fnc resolve(f: Future) -> any {
+    assert(f.resolved, "future not resolved")
+    rtn f.value
+}
+
+fnc double(x: int) -> int { rtn x * 2 }
+
+fnc main() -> () {
+    // Create and resolve futures
+    val f1 = make-future(42)
+    println("f1 = " + resolve(f1))
+
+    // Parallel-style (simulated)
+    val results = [make-future(10), make-future(20), make-future(30)]
+    println("r[0] = " + resolve(results[0]))
+    println("r[2] = " + resolve(results[2]))
+}

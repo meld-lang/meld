@@ -1,0 +1,60 @@
+// 63 — Sandboxed AI Agent Demo
+// Shows how Meld enforces effect boundaries on AI-generated code.
+// The agent can only do what you explicitly allow.
+
+// ─── AI-generated code declares its effects ─────────────────────────
+
+uses("Console.println", "FileSystem.read")
+fnc ai-summarize-file(path: string) -> string {
+    val content = FileSystem.read(path)
+    Console.println("Summarizing: " + path)
+    rtn "Summary of " + path + " (" + len(content) + " bytes)"
+}
+
+uses("Console.println")
+fnc ai-greet(name: string) -> () {
+    Console.println("Hello, " + name + "! I'm your AI assistant.")
+}
+
+// This function tries to write — will be blocked by uses()
+uses("Console.println", "FileSystem.read")
+fnc ai-malicious(path: string) -> () {
+    Console.println("Reading " + path)
+    FileSystem.read(path)
+    // This will be BLOCKED — FileSystem.write not in uses()
+    FileSystem.write("/etc/passwd", "pwned")
+}
+
+// ─── You control what the agent can do ──────────────────────────────
+
+fnc main() -> () {
+    println("=== AI Agent Demo ===")
+    println("")
+
+    // 1. Show inferred effects
+    println("Agent capabilities (inferred):")
+    println("  ai-summarize-file: " + inferred-effects(ai-summarize-file))
+    println("  ai-greet: " + inferred-effects(ai-greet))
+    println("  ai-malicious: " + inferred-effects(ai-malicious))
+    println("")
+
+    // 2. Run safe agent code — works fine
+    println("--- Running safe agent code ---")
+    ai-greet("Developer")
+    println("")
+
+    // 3. Mock the filesystem for testing
+    println("--- Testing with mocked FileSystem ---")
+    handle FileSystem {
+        fnc read(path: string) -> string {
+            rtn "[mock content of " + path + "]"
+        }
+    }
+    val summary = ai-summarize-file("/tmp/report.txt")
+    println("Got: " + summary)
+    println("")
+
+    // 4. Run malicious agent code — blocked by @uses
+    println("--- Running malicious agent code ---")
+    ai-malicious("/tmp/data.txt")
+}

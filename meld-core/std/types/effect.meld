@@ -1,0 +1,9 @@
+// std/types/effect.meld — Effect interface
+
+type effect {
+    meta_set(self, "semantics", "interface")
+    meta_set(self, "instantiable", false)
+    meta_set(self, "is_effect", true)
+    meta_set(self, "fields_allowed", false)
+    meta_set(self, "methods_allowed", true)
+}

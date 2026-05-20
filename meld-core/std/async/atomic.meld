@@ -1,0 +1,51 @@
+// std/async/atomic.meld - narrow atomic integer wrappers
+//
+// The kernel owns only atomic memory operations. Queue and scheduler algorithms
+// stay in Meld and call through this small handle type.
+
+imp kernel
+
+struct AtomicInt {
+    val handle: int
+}
+
+struct AtomicCompareExchange {
+    val success: bool
+    val value: int
+}
+
+fnc atomic-int(initial: int) -> AtomicInt {
+    rtn AtomicInt { handle = kernel.atomic-create(initial) }
+}
+
+fnc atomic-load(cell: AtomicInt) -> int {
+    rtn kernel.atomic-load(cell.handle)
+}
+
+fnc atomic-store(cell: AtomicInt, value: int) -> () {
+    kernel.atomic-store(cell.handle, value)
+}
+
+fnc atomic-exchange(cell: AtomicInt, value: int) -> int {
+    rtn kernel.atomic-exchange(cell.handle, value)
+}
+
+fnc atomic-fetch-add(cell: AtomicInt, value: int) -> int {
+    rtn kernel.atomic-fetch-add(cell.handle, value)
+}
+
+fnc atomic-compare-exchange(cell: AtomicInt, expected: int, desired: int) -> AtomicCompareExchange {
+    rtn kernel.atomic-compare-exchange(cell.handle, expected, desired)
+}
+
+fnc atomic-destroy(cell: AtomicInt) -> () {
+    kernel.atomic-destroy(cell.handle)
+}
+
+fnc yield-thread() -> () {
+    kernel.thread-yield()
+}
+
+fnc worker-cpu-count() -> int {
+    rtn kernel.cpu-count()
+}

@@ -1,0 +1,31 @@
+// std/os/atomic.meld — Atomic Operations
+// Lock-free primitives for concurrent data structures.
+
+imp kernel
+
+effect Atomic {
+    fnc load(addr: int) -> int
+    fnc store(addr: int, value: int) -> ()
+    fnc compare-and-swap(addr: int, expected: int, desired: int) -> bool
+    fnc fetch-add(addr: int, delta: int) -> int
+    fnc fence() -> ()
+}
+
+// Default handler: delegates to hardware atomics via kernel.call
+handle Atomic {
+    fnc load(addr: int) -> int {
+        rtn kernel.call("atomic_load", addr)
+    }
+    fnc store(addr: int, value: int) -> () {
+        kernel.call("atomic_store", addr, value)
+    }
+    fnc compare-and-swap(addr: int, expected: int, desired: int) -> bool {
+        rtn kernel.call("atomic_cas", addr, expected, desired)
+    }
+    fnc fetch-add(addr: int, delta: int) -> int {
+        rtn kernel.call("atomic_fetch_add", addr, delta)
+    }
+    fnc fence() -> () {
+        kernel.call("atomic_fence")
+    }
+}

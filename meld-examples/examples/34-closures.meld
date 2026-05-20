@@ -1,0 +1,29 @@
+// 34 — Closures and Higher-Order Functions
+// Lambdas capture their environment by reference.
+
+fnc square(x: int) -> int { rtn x * x }
+
+fnc apply-twice(f: any, x: int) -> int {
+    rtn f(f(x))
+}
+
+fnc main() -> () {
+    // Named function as value
+    println("square(5) = " + square(5))
+
+    // Higher-order function
+    println("apply-twice(square, 3) = " + apply-twice(square, 3))
+
+    // Mutable closure
+    var count = 0
+    val increment = { count = count + 1 }
+    increment()
+    increment()
+    increment()
+    println("count = " + count)
+
+    // Closure over local variable
+    val multiplier = 10
+    val times-ten = { rtn multiplier }
+    println("multiplier = " + times-ten())
+}

@@ -1,0 +1,17 @@
+// 23 — Ownership and Value Semantics
+// Structs are value types — copies are independent.
+
+fnc main() -> () {
+    // Value semantics: mutation doesn't affect original
+    var a = Point { x = 1, y = 2 }
+    var b = a
+    b.x = 99
+    println("a.x = " + a.x)
+    println("b.x = " + b.x)
+
+    // Arrays are also values
+    val arr1 = [1, 2, 3]
+    val arr2 = push(arr1, 4)
+    println("arr1 = " + arr1)
+    println("arr2 = " + arr2)
+}

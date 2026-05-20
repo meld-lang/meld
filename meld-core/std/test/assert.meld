@@ -1,0 +1,41 @@
+// std/test/assert.meld — Assertion utilities for testing
+
+fnc assert-eq(actual: any, expected: any, msg: string) -> () {
+    when(to-string(actual) != to-string(expected)).then({
+        panic("ASSERT FAILED: " + msg + " — expected " + to-string(expected) + ", got " + to-string(actual))
+    })
+}
+
+fnc assert-neq(actual: any, expected: any, msg: string) -> () {
+    when(to-string(actual) == to-string(expected)).then({
+        panic("ASSERT FAILED: " + msg + " — expected not " + to-string(expected))
+    })
+}
+
+fnc assert-true(value: bool, msg: string) -> () {
+    when(value == false).then({ panic("ASSERT FAILED: " + msg + " — expected true") })
+}
+
+fnc assert-false(value: bool, msg: string) -> () {
+    when(value == true).then({ panic("ASSERT FAILED: " + msg + " — expected false") })
+}
+
+fnc assert-nil(value: any, msg: string) -> () {
+    when(value != nil).then({ panic("ASSERT FAILED: " + msg + " — expected nil") })
+}
+
+fnc assert-not-nil(value: any, msg: string) -> () {
+    when(value == nil).then({ panic("ASSERT FAILED: " + msg + " — expected non-nil") })
+}
+
+fnc assert-gt(actual: int, expected: int, msg: string) -> () {
+    when(actual <= expected).then({
+        panic("ASSERT FAILED: " + msg + " — expected " + to-string(actual) + " > " + to-string(expected))
+    })
+}
+
+fnc assert-lt(actual: int, expected: int, msg: string) -> () {
+    when(actual >= expected).then({
+        panic("ASSERT FAILED: " + msg + " — expected " + to-string(actual) + " < " + to-string(expected))
+    })
+}

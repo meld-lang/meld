@@ -1,0 +1,13 @@
+fnc divide(a: int, b: int) -> Result {
+    rtn when(b == 0).then({ rtn Err("division by zero") }).else({ rtn Ok(a / b) })
+}
+
+fnc main() -> () {
+    val r1 = divide(10, 2)
+    println(unwrap(r1))
+    println(r1.is-ok)
+
+    val r2 = divide(5, 0)
+    println(r2.is-ok)
+    println(r2.error)
+}

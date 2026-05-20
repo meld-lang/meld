@@ -1,0 +1,60 @@
+// 50 — File I/O
+// Reading and writing files through the effect system.
+// Capabilities are explicit — I/O functions declare their effects.
+
+// Simulated file system operations using effects
+fnc file-exists(path: string) -> bool {
+    rtn when(path == "/tmp/hello.txt").then({ rtn true })
+        .when(path == "/tmp/data.csv").then({ rtn true })
+        .else({ rtn false })
+}
+
+fnc read-file(path: string) -> Result {
+    rtn when(file-exists(path) == false)
+        .then({ rtn Err("not found: " + path) })
+        .else({ rtn Ok("contents of " + path) })
+}
+
+fnc write-file(path: string, content: string) -> Result {
+    rtn when(path == "")
+        .then({ rtn Err("empty path") })
+        .else({
+            println("[fs] write " + len(content) + " bytes -> " + path)
+            rtn Ok(path)
+        })
+}
+
+fnc append-file(path: string, content: string) -> Result {
+    rtn when(file-exists(path) == false)
+        .then({ rtn Err("cannot append: " + path + " not found") })
+        .else({
+            println("[fs] append " + len(content) + " bytes -> " + path)
+            rtn Ok(path)
+        })
+}
+
+// Higher-level: copy a file
+fnc copy-file(src: string, dst: string) -> Result {
+    val content = read-file(src)
+    rtn when(content.is-ok == false).then({ rtn content }).else({
+        rtn write-file(dst, unwrap(content))
+    })
+}
+
+fnc main() -> () {
+    // Write a new file
+    val w = write-file("/tmp/output.txt", "hello meld")
+    println("write: " + unwrap(w))
+
+    // Read existing file
+    val r = read-file("/tmp/hello.txt")
+    println("read: " + unwrap(r))
+
+    // Read missing file
+    val missing = read-file("/nope")
+    println("missing: " + missing.error)
+
+    // Copy file
+    val cp = copy-file("/tmp/hello.txt", "/tmp/copy.txt")
+    println("copy: " + unwrap(cp))
+}

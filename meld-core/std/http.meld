@@ -1,0 +1,13 @@
+// std/http.meld — HTTP client via effects
+
+@uses(Http)
+fnc http-get(url: string) -> Result {
+    val body = Http.get(url)
+    rtn when(body == "").then({ rtn Err("request failed: " + url) }).else({ rtn Ok(body) })
+}
+
+@uses(Http)
+fnc http-post(url: string, body: string) -> Result {
+    val resp = Http.post(url, body)
+    rtn when(resp == "").then({ rtn Err("request failed: " + url) }).else({ rtn Ok(resp) })
+}

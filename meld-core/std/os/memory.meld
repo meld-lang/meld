@@ -1,0 +1,27 @@
+// std/os/memory.meld — Memory Primitives
+// Stack allocation for fibers, raw memory mapping.
+
+imp kernel
+
+effect Memory {
+    fnc alloc(size: int) -> int
+    fnc free(addr: int) -> ()
+    fnc alloc-stack(size: int) -> int
+    fnc free-stack(addr: int, size: int) -> ()
+}
+
+// Default handler: delegates to OS allocator via kernel.call
+handle Memory {
+    fnc alloc(size: int) -> int {
+        rtn kernel.call("mem_alloc", size)
+    }
+    fnc free(addr: int) -> () {
+        kernel.call("mem_free", addr)
+    }
+    fnc alloc-stack(size: int) -> int {
+        rtn kernel.call("mem_alloc_stack", size)
+    }
+    fnc free-stack(addr: int, size: int) -> () {
+        kernel.call("mem_free_stack", addr, size)
+    }
+}

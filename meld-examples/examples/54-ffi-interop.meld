@@ -1,0 +1,56 @@
+// 54 — FFI Interop
+// Calling native functions and working with C-shaped data.
+// Meld's kernel.call bridges to native code.
+
+// C-compatible struct layouts
+// In Meld, structs with primitive fields are C-layout compatible.
+fnc CPoint-new(x: int, y: int) -> CPoint {
+    rtn CPoint { x = x, y = y }
+}
+
+fnc CRect-new(x: int, y: int, w: int, h: int) -> CRect {
+    rtn CRect { origin = CPoint-new(x, y), width = w, height = h }
+}
+
+fnc area(r: CRect) -> int { rtn r.width * r.height }
+fnc contains(r: CRect, p: CPoint) -> bool {
+    rtn p.x >= r.origin.x
+}
+
+// Simulating FFI calls to system functions
+// In real Meld, these would use kernel.call("function_name", args...)
+fnc ffi-strlen(s: string) -> int {
+    // Simulates calling C strlen
+    rtn len(s)
+}
+
+fnc ffi-toupper(s: string) -> string {
+    // Simulates calling C toupper on each char
+    rtn replace(s, "hello", "HELLO")
+}
+
+fnc ffi-getenv(name: string) -> Result {
+    // Simulates calling C getenv
+    rtn when(name == "HOME").then({ rtn Ok("/home/user") })
+        .when(name == "PATH").then({ rtn Ok("/usr/bin:/bin") })
+        .else({ rtn Err("env not set: " + name) })
+}
+
+fnc main() -> () {
+    // C-shaped structs
+    val rect = CRect-new(10, 20, 100, 50)
+    println("rect area = " + area(rect))
+
+    val point = CPoint-new(15, 25)
+    println("contains point = " + contains(rect, point))
+
+    // FFI-style calls
+    println("strlen('hello') = " + ffi-strlen("hello"))
+    println("toupper = " + ffi-toupper("hello"))
+
+    // Environment access via FFI
+    val home = ffi-getenv("HOME")
+    println("HOME = " + unwrap(home))
+    val missing = ffi-getenv("MISSING")
+    println("MISSING = " + missing.error)
+}

@@ -1,0 +1,34 @@
+// std/fmt.meld — String formatting utilities
+
+// Join a list of strings with a separator
+fnc join(items: list, sep: string) -> string {
+    rtn reduce(items, "", fnc(acc: any, item: any) -> any {
+        rtn when(acc == "").then({ rtn "" + item }).else({ rtn acc + sep + item })
+    })
+}
+
+// Wrap a string in quotes
+fnc quote(s: string) -> string { rtn "\"" + s + "\"" }
+
+// Indent each line of a multi-line string
+fnc indent(s: string, prefix: string) -> string {
+    val lines = split(s, "\n")
+    val indented = map(lines, fnc(line: any) -> any { rtn prefix + line })
+    rtn join(indented, "\n")
+}
+
+// Truncate a string to max length, adding "..." if truncated
+fnc truncate(s: string, max-len: int) -> string {
+    rtn when(len(s) <= max-len).then({ rtn s })
+        .else({ rtn substr(s, 0, max-len - 3) + "..." })
+}
+
+// Center a string within a given width
+fnc center(s: string, width: int) -> string {
+    rtn when(len(s) >= width).then({ rtn s }).else({ rtn s })
+}
+
+// Format a number with thousands separator
+fnc format-number(n: int) -> string {
+    rtn "" + n
+}

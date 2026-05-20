@@ -1,0 +1,40 @@
+// 11 — Collections
+// Arrays, tuples, objects, and initialization blocks.
+
+// Arrays
+val numbers = [1, 2, 3, 4, 5]
+val names = ["Alice", "Bob", "Charlie"]
+val empty = []
+
+// Array indexing
+val first = numbers[0]
+val second = names[1]
+
+// Tuples (positional)
+val point = (10, 20)
+val triple = (1, "hello", true)
+
+// Named tuples
+val named = (x = 10, y = 20, z = 30)
+
+// Tuple access
+val x-val = point.0
+val named-x = named.x
+
+// Object literals
+val config = { host: "localhost", port: 8080 }
+val empty-obj = { name: "test" }
+
+// Initialization blocks
+struct Server {
+    val host: string
+    val port: int
+}
+
+val srv = Server { host = "0.0.0.0", port = 3000 }
+
+fnc main() -> () {
+    val numbers = [1, 2, 3, 4, 5]
+    println("numbers = " + numbers)
+    println("len = " + len(numbers))
+}

@@ -1,0 +1,25 @@
+// 17 — User-Defined Types
+// Create domain-specific types with validation.
+
+fnc make-email(addr: string) -> Result {
+    rtn when(addr.length > 3).then({ rtn Ok(addr) }).else({ rtn Err("invalid email") })
+}
+
+fnc make-age(n: int) -> Result {
+    rtn when(n >= 0).then({
+        rtn when(n <= 150).then({ rtn Ok(n) }).else({ rtn Err("too old") })
+    }).else({ rtn Err("negative age") })
+}
+
+fnc main() -> () {
+    val email = make-email("alice@example.com")
+    println("email ok = " + email.is-ok)
+    println("email = " + unwrap(email))
+
+    val age = make-age(30)
+    println("age ok = " + age.is-ok)
+
+    val bad = make-age(-5)
+    println("bad age ok = " + bad.is-ok)
+    println("bad error = " + bad.error)
+}

@@ -1,0 +1,30 @@
+// 42 — Error Propagation
+// Chaining Result operations for clean error handling.
+
+fnc parse-int(s: string) -> Result {
+    rtn when(s == "42").then({ rtn Ok(42) })
+        .when(s == "0").then({ rtn Ok(0) })
+        .else({ rtn Err("not a number: " + s) })
+}
+
+fnc validate(n: int) -> Result {
+    rtn when(n > 0).then({ rtn Ok(n) }).else({ rtn Err("must be positive") })
+}
+
+fnc parse-and-validate(s: string) -> Result {
+    val parsed = parse-int(s)
+    rtn when(parsed.is-ok == false).then({ rtn parsed }).else({
+        rtn validate(unwrap(parsed))
+    })
+}
+
+fnc main() -> () {
+    val r1 = parse-and-validate("42")
+    println("42 -> " + unwrap(r1))
+
+    val r2 = parse-and-validate("hello")
+    println("hello -> " + r2.error)
+
+    val r3 = parse-and-validate("0")
+    println("0 -> " + r3.error)
+}

@@ -1,0 +1,158 @@
+// std/encoding/flatbuffers.meld — Zero-Copy Serialization
+//
+// Maps to Meld's memory model: Hold[Buffer] from network, View[Message] for access.
+// Zero-copy, zero-allocation reads via pointer offsets into the buffer.
+// Mathematically safe access guaranteed by Hold/View tenancy.
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Buffer — the raw bytes received from network/disk
+// ═══════════════════════════════════════════════════════════════════════════
+
+struct Buffer {
+    val data: Hold[List[int]]
+    val size: int
+}
+
+fnc from-bytes(bytes: Hold[List[int]]) -> Buffer {
+    rtn Buffer { data = bytes, size = bytes.length() }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Table — zero-copy access to a flatbuffer message
+// ═══════════════════════════════════════════════════════════════════════════
+
+// A Table is a View into a Buffer at a specific offset.
+// No data is copied — fields are read by computing offsets.
+struct Table {
+    val buffer: View[Buffer]
+    val offset: int
+}
+
+// Get root table from a buffer (the entry point for reading)
+fnc get-root(buffer: View[Buffer]) -> Table {
+    val root-offset = read-u32(buffer, 0)
+    rtn Table { buffer = buffer, offset = root-offset }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Field Access — read fields by vtable slot
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Read a scalar field (int, float, bool) at vtable slot
+fnc read-int-field(table: View[Table], slot: int, default: int) -> int {
+    val field-offset = get-field-offset(table, slot)
+    (field-offset == 0).ifTrue { rtn default }
+    rtn read-i64(table.buffer, table.offset + field-offset)
+}
+
+fnc read-float-field(table: View[Table], slot: int, default: float) -> float {
+    val field-offset = get-field-offset(table, slot)
+    (field-offset == 0).ifTrue { rtn default }
+    rtn read-f64(table.buffer, table.offset + field-offset)
+}
+
+fnc read-bool-field(table: View[Table], slot: int, default: bool) -> bool {
+    val field-offset = get-field-offset(table, slot)
+    (field-offset == 0).ifTrue { rtn default }
+    rtn read-u8(table.buffer, table.offset + field-offset) != 0
+}
+
+// Read a string field — returns a View into the buffer (zero-copy)
+fnc read-string-field(table: View[Table], slot: int) -> string? {
+    val field-offset = get-field-offset(table, slot)
+    (field-offset == 0).ifTrue { rtn nil }
+    val string-offset = table.offset + field-offset + read-u32(table.buffer, table.offset + field-offset)
+    val len = read-u32(table.buffer, string-offset)
+    rtn read-utf8(table.buffer, string-offset + 4, len)
+}
+
+// Read a nested table field
+fnc read-table-field(table: View[Table], slot: int) -> Table? {
+    val field-offset = get-field-offset(table, slot)
+    (field-offset == 0).ifTrue { rtn nil }
+    val nested-offset = table.offset + field-offset + read-u32(table.buffer, table.offset + field-offset)
+    rtn Table { buffer = table.buffer, offset = nested-offset }
+}
+
+// Read a vector field — returns length and base offset for iteration
+fnc read-vector-field(table: View[Table], slot: int) -> Vector? {
+    val field-offset = get-field-offset(table, slot)
+    (field-offset == 0).ifTrue { rtn nil }
+    val vec-offset = table.offset + field-offset + read-u32(table.buffer, table.offset + field-offset)
+    val len = read-u32(table.buffer, vec-offset)
+    rtn Vector { buffer = table.buffer, offset = vec-offset + 4, length = len }
+}
+
+struct Vector {
+    val buffer: View[Buffer]
+    val offset: int
+    val length: int
+}
+
+fnc vector-get-int(vec: View[Vector], index: int) -> int {
+    rtn read-i64(vec.buffer, vec.offset + index * 8)
+}
+
+fnc vector-get-string(vec: View[Vector], index: int) -> string {
+    val str-offset = vec.offset + index * 4 + read-u32(vec.buffer, vec.offset + index * 4)
+    val len = read-u32(vec.buffer, str-offset)
+    rtn read-utf8(vec.buffer, str-offset + 4, len)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Builder — construct flatbuffers
+// ═══════════════════════════════════════════════════════════════════════════
+
+struct Builder {
+    var bytes: List[int]
+    var vtables: List[List[int]]
+}
+
+fnc create-builder(initial-size: int) -> Builder {
+    rtn Builder { bytes = [], vtables = [] }
+}
+
+fnc finish(builder: Builder) -> Hold[List[int]] {
+    rtn Hold(builder.bytes)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Internal — raw memory reads (little-endian)
+// ═══════════════════════════════════════════════════════════════════════════
+
+fnc get-field-offset(table: View[Table], slot: int) -> int {
+    val vtable-offset = table.offset - read-i32(table.buffer, table.offset)
+    val vtable-size = read-u16(table.buffer, vtable-offset)
+    (slot * 2 + 4 >= vtable-size).ifTrue { rtn 0 }
+    rtn read-u16(table.buffer, vtable-offset + 4 + slot * 2)
+}
+
+fnc read-u8(buf: View[Buffer], offset: int) -> int {
+    rtn buf.data[offset]
+}
+
+fnc read-u16(buf: View[Buffer], offset: int) -> int {
+    rtn buf.data[offset] + buf.data[offset + 1] * 256
+}
+
+fnc read-u32(buf: View[Buffer], offset: int) -> int {
+    rtn buf.data[offset] + buf.data[offset + 1] * 256 + buf.data[offset + 2] * 65536 + buf.data[offset + 3] * 16777216
+}
+
+fnc read-i32(buf: View[Buffer], offset: int) -> int {
+    val u = read-u32(buf, offset)
+    (u >= 2147483648).ifTrue { rtn u - 4294967296 }
+    rtn u
+}
+
+fnc read-i64(buf: View[Buffer], offset: int) -> int {
+    rtn kernel.call("read_i64_le", buf.data, offset)
+}
+
+fnc read-f64(buf: View[Buffer], offset: int) -> float {
+    rtn kernel.call("read_f64_le", buf.data, offset)
+}
+
+fnc read-utf8(buf: View[Buffer], offset: int, len: int) -> string {
+    rtn kernel.call("read_utf8", buf.data, offset, len)
+}

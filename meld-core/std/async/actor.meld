@@ -1,0 +1,119 @@
+// std/async/actor.meld - poll-based actors
+//
+// Actors are runtime tasks with mailbox channels. They do not own OS threads
+// and do not block on receive; actor code composes through Pollable values.
+
+imp std.async.core
+imp std.async.channel
+imp std.async.scheduler
+
+enum SupervisionStrategy {
+    Restart,
+    Stop,
+    Escalate
+}
+
+struct Message {
+    val sender: int
+    val payload: any
+    val correlation-id: any
+    val reply-to: any
+}
+
+struct ActorRef {
+    val id: int
+    val mailbox: Channel[Message]
+}
+
+struct ActorConfig {
+    val name: string
+    val supervision: SupervisionStrategy
+}
+
+struct ActorFrame {
+    val actor: ActorRef
+    val task: TaskFrame
+    val config: ActorConfig
+}
+
+struct ActorSystem {
+    val runtime: Runtime
+    var next-actor-id: int
+    var actors: list
+}
+
+fnc create-actor-system(runtime: Runtime) -> ActorSystem {
+    rtn ActorSystem { runtime = runtime, next-actor-id = 1, actors = [] }
+}
+
+fnc create-default-actor-system() -> ActorSystem {
+    rtn create-actor-system(create-runtime())
+}
+
+fnc spawn-actor(system: ActorSystem, main: fnc(self: ActorRef) -> Pollable[()], config: ActorConfig) -> ActorRef {
+    val mailbox = create-channel()
+    val actor-ref = ActorRef { id = system.next-actor-id, mailbox = mailbox }
+    val task = spawn-pollable(system.runtime, main(actor-ref))
+
+    system.next-actor-id = system.next-actor-id + 1
+    system.actors = arr-push(system.actors, ActorFrame {
+        actor = actor-ref,
+        task = task,
+        config = config
+    })
+
+    rtn actor-ref
+}
+
+fnc tell(target: ActorRef, payload: any, sender: int) -> bool {
+    rtn channel-send(target.mailbox, Message {
+        sender = sender,
+        payload = payload,
+        correlation-id = nil,
+        reply-to = nil
+    })
+}
+
+fnc send-message(target: ActorRef, payload: any, sender: int) -> bool {
+    rtn tell(target, payload, sender)
+}
+
+fnc ask(target: ActorRef, payload: any, sender: int, correlation-id: int) -> Pollable[any] {
+    val reply-ch = create-channel()
+    val accepted = channel-send(target.mailbox, Message {
+        sender = sender,
+        payload = payload,
+        correlation-id = correlation-id,
+        reply-to = reply-ch
+    })
+
+    rtn when(accepted).then({
+        rtn channel-recv(reply-ch)
+    }).else({
+        rtn failed("actor mailbox closed")
+    })
+}
+
+fnc receive(self: ActorRef) -> Pollable[Message] {
+    rtn channel-recv(self.mailbox)
+}
+
+fnc reply(message: Message, payload: any) -> bool {
+    rtn when(is-nil(message.reply-to)).then({
+        rtn false
+    }).else({
+        rtn channel-send(message.reply-to, payload)
+    })
+}
+
+fnc stop(actor: ActorRef) -> () {
+    channel-close(actor.mailbox)
+}
+
+fnc tick-actors(system: ActorSystem) -> bool {
+    rtn tick-runtime(system.runtime)
+}
+
+fnc run-actors-until-idle(system: ActorSystem) -> () {
+    run-until-idle(system.runtime)
+}

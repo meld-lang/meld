@@ -1,0 +1,225 @@
+// std/collections/flat_map.meld - open-addressed hash map substrate.
+//
+// This is intentionally a general Meld collection, not a cache-specific
+// primitive. It relies on mutable arrays plus hash/value equality builtins,
+// letting higher-level libraries keep their algorithms in Meld.
+
+struct FlatMapLookup {
+    val found: bool
+    val value: any
+    val index: int
+}
+
+struct FlatMap {
+    var ctrl: list
+    var keys: list
+    var values: list
+    var hashes: list
+    var capacity: int
+    var size: int
+    var deleted: int
+}
+
+fnc flat-map-max(a: int, b: int) -> int {
+    rtn when(a > b).then({ rtn a }).else({ rtn b })
+}
+
+fnc flat-map-positive(value: int) -> int {
+    rtn when(value < 0).then({ rtn 0 - value }).else({ rtn value })
+}
+
+fnc flat-map-next-power-of-two(target: int) -> int {
+    val desired = flat-map-max(1, target)
+    var power = 1
+    loop-while({ rtn power < desired }, {
+        power = power * 2
+    })
+    rtn power
+}
+
+fnc flat-map-create(expected-size: int) -> FlatMap {
+    val capacity = flat-map-next-power-of-two(flat-map-max(4, expected-size * 2))
+    rtn FlatMap {
+        ctrl = iarr-new(capacity, 0),
+        keys = arr-new(capacity, nil),
+        values = arr-new(capacity, nil),
+        hashes = iarr-new(capacity, 0),
+        capacity = capacity,
+        size = 0,
+        deleted = 0
+    }
+}
+
+fnc flat-map-next-index(map: FlatMap, index: int) -> int {
+    rtn (index + 1) % map.capacity
+}
+
+fnc flat-map-start-index(map: FlatMap, hash: int) -> int {
+    rtn flat-map-positive(hash) % map.capacity
+}
+
+fnc flat-map-find-index-hashed(map: FlatMap, key: any, hash: int) -> int {
+    var index = flat-map-start-index(map, hash)
+    var scanned = 0
+    var found = -1
+    var done = false
+
+    loop-while({ rtn done == false && scanned < map.capacity }, {
+        val ctrl = iarr-get(map.ctrl, index)
+        when(ctrl == 0).then({
+            done = true
+        }).else({
+            when(ctrl == 1 && iarr-get(map.hashes, index) == hash && value-eq(arr-get(map.keys, index), key)).then({
+                found = index
+                done = true
+            }).else({
+                index = flat-map-next-index(map, index)
+                scanned = scanned + 1
+            })
+        })
+    })
+
+    rtn found
+}
+
+fnc flat-map-find-index(map: FlatMap, key: any) -> int {
+    rtn flat-map-find-index-hashed(map, key, hash-code(key))
+}
+
+fnc flat-map-find-slot(map: FlatMap, key: any, hash: int) -> int {
+    var index = flat-map-start-index(map, hash)
+    var first-deleted = -1
+    var scanned = 0
+    var found = -1
+    var done = false
+
+    loop-while({ rtn done == false && scanned < map.capacity }, {
+        val ctrl = iarr-get(map.ctrl, index)
+        when(ctrl == 0).then({
+            found = when(first-deleted >= 0).then({ rtn first-deleted }).else({ rtn index })
+            done = true
+        }).else({
+            when(ctrl == 2).then({
+                when(first-deleted < 0).then({
+                    first-deleted = index
+                })
+                index = flat-map-next-index(map, index)
+                scanned = scanned + 1
+            }).else({
+                when(iarr-get(map.hashes, index) == hash && value-eq(arr-get(map.keys, index), key)).then({
+                    found = index
+                    done = true
+                }).else({
+                    index = flat-map-next-index(map, index)
+                    scanned = scanned + 1
+                })
+            })
+        })
+    })
+    rtn when(found >= 0).then({ rtn found }).else({
+        rtn when(first-deleted >= 0).then({ rtn first-deleted }).else({ rtn -1 })
+    })
+}
+
+fnc flat-map-put-hashed-no-grow(map: FlatMap, key: any, value: any, hash: int) -> bool {
+    val slot = flat-map-find-slot(map, key, hash)
+    rtn when(slot < 0).then({ rtn false }).else({
+        val ctrl = iarr-get(map.ctrl, slot)
+        val inserted = ctrl != 1
+        when(inserted).then({
+            map.size = map.size + 1
+            when(ctrl == 2).then({ map.deleted = flat-map-max(0, map.deleted - 1) })
+        })
+        iarr-set-mut(map.ctrl, slot, 1)
+        arr-set-mut(map.keys, slot, key)
+        arr-set-mut(map.values, slot, value)
+        iarr-set-mut(map.hashes, slot, hash)
+        rtn inserted
+    })
+}
+
+fnc flat-map-reinsert-all(map: FlatMap, old-ctrl: list, old-keys: list, old-values: list, old-hashes: list, old-capacity: int, index: int) -> () {
+    var cursor = index
+    loop-while({ rtn cursor < old-capacity }, {
+        when(iarr-get(old-ctrl, cursor) == 1).then({
+            flat-map-put-hashed-no-grow(map, arr-get(old-keys, cursor), arr-get(old-values, cursor), iarr-get(old-hashes, cursor))
+        })
+        cursor = cursor + 1
+    })
+}
+
+fnc flat-map-grow(map: FlatMap) -> () {
+    val old-ctrl = map.ctrl
+    val old-keys = map.keys
+    val old-values = map.values
+    val old-hashes = map.hashes
+    val old-capacity = map.capacity
+    val new-capacity = flat-map-max(4, old-capacity * 2)
+
+    map.ctrl = iarr-new(new-capacity, 0)
+    map.keys = arr-new(new-capacity, nil)
+    map.values = arr-new(new-capacity, nil)
+    map.hashes = iarr-new(new-capacity, 0)
+    map.capacity = new-capacity
+    map.size = 0
+    map.deleted = 0
+    flat-map-reinsert-all(map, old-ctrl, old-keys, old-values, old-hashes, old-capacity, 0)
+}
+
+fnc flat-map-ensure-room(map: FlatMap) -> () {
+    when((map.size + map.deleted + 1) * 10 >= map.capacity * 7).then({
+        flat-map-grow(map)
+    })
+}
+
+fnc flat-map-put-hashed(map: FlatMap, key: any, value: any, hash: int) -> bool {
+    flat-map-ensure-room(map)
+    rtn flat-map-put-hashed-no-grow(map, key, value, hash)
+}
+
+fnc flat-map-put(map: FlatMap, key: any, value: any) -> bool {
+    rtn flat-map-put-hashed(map, key, value, hash-code(key))
+}
+
+fnc flat-map-get-hashed(map: FlatMap, key: any, hash: int) -> FlatMapLookup {
+    val index = flat-map-find-index-hashed(map, key, hash)
+    rtn when(index >= 0).then({
+        rtn FlatMapLookup { found = true, value = arr-get(map.values, index), index = index }
+    }).else({
+        rtn FlatMapLookup { found = false, value = nil, index = -1 }
+    })
+}
+
+fnc flat-map-get(map: FlatMap, key: any) -> FlatMapLookup {
+    rtn flat-map-get-hashed(map, key, hash-code(key))
+}
+
+fnc flat-map-contains(map: FlatMap, key: any) -> bool {
+    rtn flat-map-find-index(map, key) >= 0
+}
+
+fnc flat-map-remove-hashed(map: FlatMap, key: any, hash: int) -> bool {
+    val index = flat-map-find-index-hashed(map, key, hash)
+    rtn when(index >= 0).then({
+        iarr-set-mut(map.ctrl, index, 2)
+        arr-set-mut(map.keys, index, nil)
+        arr-set-mut(map.values, index, nil)
+        iarr-set-mut(map.hashes, index, 0)
+        map.size = flat-map-max(0, map.size - 1)
+        map.deleted = map.deleted + 1
+        rtn true
+    }).else({ rtn false })
+}
+
+fnc flat-map-remove(map: FlatMap, key: any) -> bool {
+    rtn flat-map-remove-hashed(map, key, hash-code(key))
+}
+
+fnc flat-map-clear(map: FlatMap) -> () {
+    map.ctrl = iarr-new(map.capacity, 0)
+    map.keys = arr-new(map.capacity, nil)
+    map.values = arr-new(map.capacity, nil)
+    map.hashes = iarr-new(map.capacity, 0)
+    map.size = 0
+    map.deleted = 0
+}

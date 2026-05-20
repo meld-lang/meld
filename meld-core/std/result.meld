@@ -1,0 +1,24 @@
+// std/result.meld — Result type for explicit error handling
+// Represents either a success value (ok) or an error value (err).
+// Implementation provided by the runtime.
+
+@builtin
+struct result[T, E] {
+    fnc is_ok() -> bool
+    fnc is_err() -> bool
+    fnc value() -> T
+    fnc error() -> E
+    fnc unwrap() -> T
+    fnc unwrap_err() -> E
+    fnc unwrap_or(default: T) -> T
+    fnc expect(message: string) -> T
+}
+
+// Constructor helpers
+fnc Ok(value: any) -> any {
+    rtn value
+}
+
+fnc Err(error: any) -> any {
+    rtn error
+}

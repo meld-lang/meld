@@ -1,0 +1,63 @@
+// 59 — Const Generics
+// Fixed-capacity data structures parameterized by size.
+// Demonstrates static value parameters for zero-allocation containers.
+
+// Fixed-size ring buffer with capacity N
+fnc RingBuf-new(capacity: int) -> RingBuf {
+    rtn RingBuf { items = [], capacity = capacity, head = 0, count = 0 }
+}
+
+fnc ring-push(buf: RingBuf, item: any) -> RingBuf {
+    val new-items = push(buf.items, item)
+    val new-count = when(buf.count < buf.capacity)
+        .then({ rtn buf.count + 1 })
+        .else({ rtn buf.capacity })
+    rtn RingBuf { items = new-items, capacity = buf.capacity, head = buf.head, count = new-count }
+}
+
+fnc ring-len(buf: RingBuf) -> int { rtn buf.count }
+fnc ring-cap(buf: RingBuf) -> int { rtn buf.capacity }
+fnc ring-full(buf: RingBuf) -> bool { rtn buf.count == buf.capacity }
+
+// Fixed-size stack
+fnc Stack-new(max-size: int) -> Stack {
+    rtn Stack { items = [], max-size = max-size }
+}
+
+fnc stack-push(s: Stack, item: any) -> Result {
+    rtn when(len(s.items) >= s.max-size)
+        .then({ rtn Err("stack overflow: max " + s.max-size) })
+        .else({ rtn Ok(Stack { items = push(s.items, item), max-size = s.max-size }) })
+}
+
+fnc stack-peek(s: Stack) -> Result {
+    rtn when(len(s.items) == 0)
+        .then({ rtn Err("stack empty") })
+        .else({ rtn Ok(s.items[len(s.items) - 1]) })
+}
+
+fnc stack-size(s: Stack) -> int { rtn len(s.items) }
+
+fnc main() -> () {
+    // Ring buffer with capacity 3
+    println("--- ring buffer (cap=3) ---")
+    var ring = RingBuf-new(3)
+    ring = ring-push(ring, "a")
+    ring = ring-push(ring, "b")
+    ring = ring-push(ring, "c")
+    println("len: " + ring-len(ring) + " cap: " + ring-cap(ring))
+    println("full: " + ring-full(ring))
+
+    // Stack with max size 4
+    println("--- stack (max=4) ---")
+    var stack = Stack-new(4)
+    stack = unwrap(stack-push(stack, 10))
+    stack = unwrap(stack-push(stack, 20))
+    stack = unwrap(stack-push(stack, 30))
+    println("size: " + stack-size(stack))
+    println("peek: " + unwrap(stack-peek(stack)))
+
+    stack = unwrap(stack-push(stack, 40))
+    val overflow = stack-push(stack, 50)
+    println("overflow: " + overflow.error)
+}

@@ -1,0 +1,1090 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+# Main CLI binary
+cc_binary(
+    name = "meld",
+    srcs = ["src/main.cpp"],
+    deps = [
+        ":cli_core",
+        ":command_dispatcher",
+        ":config_manager",
+        ":error_handler",
+        ":compiler_module",
+        ":cap_module",
+        ":interpreter_module",
+        ":project_module",
+        ":package_module",
+        ":mcp_server_module",
+        ":lsp_module",
+        ":help_module",
+        ":shell_integration_module",
+        ":explain_module",
+        ":fix_module",
+        ":guide_module",
+        ":graph_module",
+        ":doctor_module",
+        ":check_module",
+        ":debug_attach_module",
+        ":debug_orchestrator_module",
+        ":sign_module",
+        ":daemon_module",
+        ":vm_module",
+        "//shared:common",
+        "//shared:logging",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Core CLI framework library
+cc_library(
+    name = "cli_core",
+    srcs = [
+        "src/cli_core.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/cli_core.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":config_manager",
+        ":error_handler",
+        ":performance_manager",
+        ":resource_manager",
+        ":lazy_command_loader",
+        ":compiler_module",
+        ":cap_module",
+        ":interpreter_module",
+        ":project_module",
+        ":package_module",
+        ":mcp_server_module",
+        ":lsp_module",
+        ":help_module",
+        ":shell_integration_module",
+        ":debug_attach_module",
+        ":debug_orchestrator_module",
+        ":sign_module",
+        ":daemon_module",
+        ":vm_module",
+        ":update_module",
+        ":module_command",
+        ":dev_tools_module",
+        ":test_module",
+        ":explain_module",
+        ":fix_module",
+        ":guide_module",
+        ":graph_module",
+        ":doctor_module",
+        ":check_module",
+        "//shared:common",
+        "//shared:logging",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Command dispatcher and plugin architecture
+cc_library(
+    name = "command_dispatcher",
+    srcs = [
+        "src/command_dispatcher.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/command_dispatcher.hpp",
+        "include/meld/cli/command_handler.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Configuration management system
+cc_library(
+    name = "config_manager",
+    srcs = [
+        "src/config_manager.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/config_manager.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Error handling and reporting
+cc_library(
+    name = "error_handler",
+    srcs = [
+        "src/error_handler.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/error_handler.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Compiler module with multi-target support
+cc_library(
+    name = "compiler_module",
+    srcs = [
+        "src/compiler_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/compiler_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//meld-core:parser",
+        "//meld-core:compiler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# CAP (Compiler-Agent Protocol) module
+cc_library(
+    name = "cap_module",
+    srcs = [
+        "src/cap_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/cap_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//meld-core:compiler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Daemon client — lightweight IPC for meld run daemon handshake (Req 2.14, 2.15)
+cc_library(
+    name = "daemon_client",
+    srcs = [
+        "src/daemon_client.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/daemon_client.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Crash trace — AST-precision crash analysis (Req 2.16)
+cc_library(
+    name = "crash_trace",
+    srcs = [
+        "src/crash_trace.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/crash_trace.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        "//meld-manifest:mdebug_sidecar",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# VFS Bridge — memory-only tmpfs working directory (Req 22)
+cc_library(
+    name = "vfs_bridge",
+    srcs = [
+        "src/vfs_bridge.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/vfs_bridge.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Interpreter module with REPL support
+cc_library(
+    name = "interpreter_module",
+    srcs = [
+        "src/interpreter_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/interpreter_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        ":daemon_client",
+        ":crash_trace",
+        ":vfs_bridge",
+        "//meld-core:parser",
+        "//meld-interpreter:interpreter",
+        "//meld-daemon:dap_channel",
+        "//meld-core:compiler",
+        "//meld-manifest:tombstone",
+        "//meld-manifest:mdebug_sidecar",
+        "//shared:common",
+        "//third_party/linenoise:linenoise",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Project management module
+cc_library(
+    name = "project_module",
+    srcs = [
+        "src/project_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/project_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Daemon bridge — native Unix socket relay for LSP/MCP stdio transport
+cc_library(
+    name = "daemon_bridge",
+    srcs = [
+        "src/daemon_bridge.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/daemon_bridge.hpp",
+    ],
+    includes = ["include"],
+    visibility = ["//visibility:public"],
+)
+
+# LSP integration module
+cc_library(
+    name = "lsp_module",
+    srcs = [
+        "src/lsp_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/lsp_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":daemon_bridge",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Development tools module
+cc_library(
+    name = "dev_tools_module",
+    srcs = [
+        "src/dev_tools_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/dev_tools_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//meld-core:parser",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Test module - meld test subcommand (Req 8)
+cc_library(
+    name = "test_module",
+    srcs = [
+        "src/test_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/test_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Explain module — diagnostic code lookup
+cc_library(
+    name = "explain_module",
+    srcs = [
+        "src/explain_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/explain_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Fix module — structured fix plan generation
+cc_library(
+    name = "fix_module",
+    srcs = [
+        "src/fix_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/fix_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        "//meld-core:compiler",
+        "//meld-core:api",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Guide module — version-matched language guidance
+cc_library(
+    name = "guide_module",
+    srcs = [
+        "src/guide_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/guide_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Graph module — module dependency graph
+cc_library(
+    name = "graph_module",
+    srcs = [
+        "src/graph_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/graph_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Doctor module — environment diagnostics
+cc_library(
+    name = "doctor_module",
+    srcs = [
+        "src/doctor_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/doctor_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Check module — parse + type-check without execution
+cc_library(
+    name = "check_module",
+    srcs = [
+        "src/check_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/check_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        "//meld-core:compiler",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Package management module
+cc_library(
+    name = "package_module",
+    srcs = [
+        "src/package_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/package_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# MCP server integration module
+cc_library(
+    name = "mcp_server_module",
+    srcs = [
+        "src/mcp_server_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/mcp_server_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":daemon_bridge",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Help and documentation module
+cc_library(
+    name = "help_module",
+    srcs = [
+        "src/help_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/help_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Sign module — meld sign (Req 23)
+cc_library(
+    name = "sign_module",
+    srcs = [
+        "src/sign_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/sign_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//meld-manifest:signing",
+        "//meld-manifest:tombstone",
+        "//meld-manifest:verifier",
+        "//meld-manifest:manifest",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Daemon management module — meld daemon (Req 24)
+cc_library(
+    name = "daemon_module",
+    srcs = [
+        "src/daemon_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/daemon_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":daemon_bridge",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# VM management module — meld vm (Req 25)
+cc_library(
+    name = "vm_module",
+    srcs = [
+        "src/vm_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/vm_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Update module — meld update (self-update)
+cc_library(
+    name = "update_module",
+    srcs = [
+        "src/update_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/update_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Module command — meld module (unified package management, Req 27–33)
+cc_library(
+    name = "module_command",
+    srcs = [
+        "src/module_command.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/module_command.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Debug attach module — meld debug attach <pid> (SUPERSEDED by debug_orchestrator_module)
+cc_library(
+    name = "debug_attach_module",
+    srcs = [
+        "src/debug_attach_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/debug_attach_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Debug orchestrator module — unified meld debug (Req 20)
+cc_library(
+    name = "debug_orchestrator_module",
+    srcs = [
+        "src/debug_orchestrator_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/debug_orchestrator_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Shell integration module
+cc_library(
+    name = "shell_integration_module",
+    srcs = [
+        "src/shell_integration_module.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/shell_integration_module.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//shared:common",
+        "@nlohmann_json//:json",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Performance management system
+cc_library(
+    name = "performance_manager",
+    srcs = [
+        "src/performance_manager.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/performance_manager.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Resource management system
+cc_library(
+    name = "resource_manager",
+    srcs = [
+        "src/resource_manager.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/resource_manager.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Lazy command loading system
+cc_library(
+    name = "lazy_command_loader",
+    srcs = [
+        "src/lazy_command_loader.cpp",
+    ],
+    hdrs = [
+        "include/meld/cli/lazy_command_loader.hpp",
+    ],
+    includes = ["include"],
+    deps = [
+        ":command_dispatcher",
+        ":performance_manager",
+        "//shared:common",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Property-based tests
+cc_test(
+    name = "command_dispatcher_property_test",
+    srcs = ["tests/command_dispatcher_property_test.cpp"],
+    deps = [
+        ":command_dispatcher",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "config_manager_property_test",
+    srcs = ["tests/config_manager_property_test.cpp"],
+    deps = [
+        ":config_manager",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "config_hierarchy_property_test",
+    srcs = ["tests/config_hierarchy_property_test.cpp"],
+    deps = [
+        ":config_manager",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "compiler_target_consistency_property_test",
+    srcs = ["tests/compiler_target_consistency_property_test.cpp"],
+    deps = [
+        ":compiler_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "compilation_error_reporting_property_test",
+    srcs = ["tests/compilation_error_reporting_property_test.cpp"],
+    deps = [
+        ":compiler_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "output_file_location_consistency_property_test",
+    srcs = ["tests/output_file_location_consistency_property_test.cpp"],
+    deps = [
+        ":compiler_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "main_entry_point_test",
+    srcs = ["tests/main_entry_point_test.cpp"],
+    deps = [
+        ":interpreter_module",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "interpreter_execution_correctness_property_test",
+    srcs = ["tests/interpreter_execution_correctness_property_test.cpp"],
+    deps = [
+        ":interpreter_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "argument_passing_preservation_property_test",
+    srcs = ["tests/argument_passing_preservation_property_test.cpp"],
+    deps = [
+        ":interpreter_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "runtime_error_stack_traces_property_test",
+    srcs = ["tests/runtime_error_stack_traces_property_test.cpp"],
+    deps = [
+        ":interpreter_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "repl_expression_evaluation_property_test",
+    srcs = ["tests/repl_expression_evaluation_property_test.cpp"],
+    deps = [
+        ":interpreter_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "repl_state_persistence_property_test",
+    srcs = ["tests/repl_state_persistence_property_test.cpp"],
+    deps = [
+        ":interpreter_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "repl_module_loading_property_test",
+    srcs = ["tests/repl_module_loading_property_test.cpp"],
+    deps = [
+        ":interpreter_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "project_scaffolding_consistency_property_test",
+    srcs = ["tests/project_scaffolding_consistency_property_test.cpp"],
+    deps = [
+        ":project_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "build_file_generation_property_test",
+    srcs = ["tests/build_file_generation_property_test.cpp"],
+    deps = [
+        ":project_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "build_system_detection_property_test",
+    srcs = ["tests/build_system_detection_property_test.cpp"],
+    deps = [
+        ":project_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "test_execution_completeness_property_test",
+    srcs = ["tests/test_execution_completeness_property_test.cpp"],
+    deps = [
+        ":project_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "clean_operation_completeness_property_test",
+    srcs = ["tests/clean_operation_completeness_property_test.cpp"],
+    deps = [
+        ":project_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "dependency_resolution_property_test",
+    srcs = ["tests/dependency_resolution_property_test.cpp"],
+    deps = [
+        ":project_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "lsp_server_lifecycle_property_test",
+    srcs = ["tests/lsp_server_lifecycle_property_test.cpp"],
+    deps = [
+        ":lsp_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "lsp_symbol_search_accuracy_property_test",
+    srcs = ["tests/lsp_symbol_search_accuracy_property_test.cpp"],
+    deps = [
+        ":lsp_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "lsp_diagnostic_completeness_property_test",
+    srcs = ["tests/lsp_diagnostic_completeness_property_test.cpp"],
+    deps = [
+        ":lsp_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "lsp_code_intelligence_accuracy_property_test",
+    srcs = ["tests/lsp_code_intelligence_accuracy_property_test.cpp"],
+    deps = [
+        ":lsp_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "lsp_rename_safety_property_test",
+    srcs = ["tests/lsp_rename_safety_property_test.cpp"],
+    deps = [
+        ":lsp_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "code_formatting_consistency_property_test",
+    srcs = ["tests/code_formatting_consistency_property_test.cpp"],
+    deps = [
+        ":dev_tools_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "format_check_non_modification_property_test",
+    srcs = ["tests/format_check_non_modification_property_test.cpp"],
+    deps = [
+        ":dev_tools_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "linting_issue_detection_property_test",
+    srcs = ["tests/linting_issue_detection_property_test.cpp"],
+    deps = [
+        ":dev_tools_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "automatic_fix_safety_property_test",
+    srcs = ["tests/automatic_fix_safety_property_test.cpp"],
+    deps = [
+        ":dev_tools_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "recursive_processing_completeness_property_test",
+    srcs = ["tests/recursive_processing_completeness_property_test.cpp"],
+    deps = [
+        ":dev_tools_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "package_installation_correctness_property_test",
+    srcs = ["tests/package_installation_correctness_property_test.cpp"],
+    deps = [
+        ":package_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "package_search_relevance_property_test",
+    srcs = ["tests/package_search_relevance_property_test.cpp"],
+    deps = [
+        ":package_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "dependency_conflict_resolution_property_test",
+    srcs = ["tests/dependency_conflict_resolution_property_test.cpp"],
+    deps = [
+        ":package_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "command_suggestion_quality_property_test",
+    srcs = ["tests/command_suggestion_quality_property_test.cpp"],
+    deps = [
+        ":command_dispatcher",
+        ":error_handler",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "error_message_helpfulness_property_test",
+    srcs = ["tests/error_message_helpfulness_property_test.cpp"],
+    deps = [
+        ":error_handler",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "json_output_validity_property_test",
+    srcs = ["tests/json_output_validity_property_test.cpp"],
+    deps = [
+        ":shell_integration_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+        "@nlohmann_json//:json",
+    ],
+)
+
+cc_test(
+    name = "output_verbosity_control_property_test",
+    srcs = ["tests/output_verbosity_control_property_test.cpp"],
+    deps = [
+        ":shell_integration_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Debug orchestrator module unit tests (Req 20)
+cc_test(
+    name = "debug_orchestrator_module_test",
+    srcs = ["tests/debug_orchestrator_module_test.cpp"],
+    deps = [
+        ":debug_orchestrator_module",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Daemon handshake and crash trace tests (Req 2.14–2.16)
+cc_test(
+    name = "daemon_handshake_test",
+    srcs = ["tests/daemon_handshake_test.cpp"],
+    deps = [
+        ":daemon_client",
+        ":crash_trace",
+        "//meld-manifest:mdebug_sidecar",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Integration tests for multi-module workflows
+cc_test(
+    name = "integration_multi_module_workflows_test",
+    srcs = ["tests/integration_multi_module_workflows_test.cpp"],
+    deps = [
+        ":cli_core",
+        ":command_dispatcher",
+        ":compiler_module",
+        ":interpreter_module",
+        ":project_module",
+        ":lsp_module",
+        ":mcp_server_module",
+        "//meld-test:testing",
+        "@googletest//:gtest_main",
+    ],
+    size = "large",  # Integration tests may take longer
+    timeout = "moderate",
+)

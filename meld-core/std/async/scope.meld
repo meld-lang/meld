@@ -1,0 +1,49 @@
+// std/async/scope.meld - structured concurrency scaffold
+//
+// A scope owns the runtime frames spawned through it. Dropping/cancelling the
+// scope invalidates each frame generation, which makes stale wakers inert.
+
+imp std.async.core
+imp std.async.scheduler
+imp std.async.task
+
+struct Scope {
+    val runtime: Runtime
+    var tasks: list
+    var cancelled: bool
+}
+
+fnc create-scope() -> Scope {
+    rtn Scope { runtime = create-runtime(), tasks = [], cancelled = false }
+}
+
+fnc scope-spawn[T](scope: Scope, work: Pollable[T]) -> Task[T] {
+    val task = spawn-task(scope.runtime, work)
+    scope.tasks = arr-push(scope.tasks, task)
+    rtn task
+}
+
+fnc scope-launch[T](scope: Scope, work: Pollable[T]) -> Task[T] {
+    rtn scope-spawn(scope, work)
+}
+
+fnc scope-cancel(scope: Scope) -> () {
+    scope.cancelled = true
+
+    forEach(scope.tasks, fnc(task: any) -> () {
+        cancel-task(task)
+    })
+}
+
+fnc scope-tick(scope: Scope) -> bool {
+    rtn when(scope.cancelled).then({ rtn false }).else({
+        rtn tick-runtime(scope.runtime)
+    })
+}
+
+fnc scope-run-until-idle(scope: Scope) -> () {
+    var active = scope-tick(scope)
+    loop-while({ rtn active }, {
+        active = scope-tick(scope)
+    })
+}

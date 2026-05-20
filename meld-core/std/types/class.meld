@@ -1,0 +1,9 @@
+// std/types/class.meld — Reference semantics, ARC-managed
+
+type class {
+    meta_set(self, "semantics", "reference")
+    meta_set(self, "memory", "arc")
+    meta_set(self, "copyable", false)
+    meta_set(self, "fields_allowed", true)
+    meta_set(self, "methods_allowed", true)
+}

@@ -1,0 +1,22 @@
+// 21 — Union Types (Tagged)
+// Represent values that can be one of several types.
+
+fnc make-int-val(n: int) -> Value {
+    rtn Value { tag = "int", int-val = n, str-val = "" }
+}
+
+fnc make-str-val(s: string) -> Value {
+    rtn Value { tag = "str", int-val = 0, str-val = s }
+}
+
+fnc show(v: Value) -> string {
+    rtn when(v.tag == "int").then({ rtn "Int(" + v.int-val + ")" })
+        .else({ rtn "Str(" + v.str-val + ")" })
+}
+
+fnc main() -> () {
+    val a = make-int-val(42)
+    val b = make-str-val("hello")
+    println(a.show())
+    println(b.show())
+}

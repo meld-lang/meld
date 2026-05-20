@@ -1,0 +1,44 @@
+// std/test/mock.meld — Fluent Mocking Framework
+// Methods embedded via anonymous impl blocks (Req 177).
+
+struct Mock {
+    val name: string
+    var call-count: int
+}
+
+struct MockVerification {
+    val mock-name: string
+    val method: string
+    val actual-count: int
+}
+
+fnc mock(name: string) -> Mock {
+    rtn Mock { name = name, call-count = 0 }
+}
+
+fnc verify(m: Mock, method: string) -> MockVerification {
+    rtn MockVerification { mock-name = m.name, method = method, actual-count = m.call-count }
+}
+
+MockVerification {
+    fnc was-called() -> MockVerification {
+        (self.actual-count > 0).ifFalse {
+            println("FAIL: " + self.method + " was never called")
+        }
+        rtn self
+    }
+
+    fnc was-called-times(expected: int) -> MockVerification {
+        (self.actual-count == expected).ifFalse {
+            println("FAIL: " + self.method + " expected " + expected + " calls")
+        }
+        rtn self
+    }
+
+    fnc was-never-called() -> MockVerification {
+        (self.actual-count == 0).ifFalse {
+            println("FAIL: " + self.method + " was called unexpectedly")
+        }
+        rtn self
+    }
+}

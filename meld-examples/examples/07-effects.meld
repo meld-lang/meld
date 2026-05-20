@@ -1,0 +1,17 @@
+// 07 — Effects
+// Side effects are tracked through the effect system.
+
+fnc greet(name: string) -> () {
+    Console.println("Hello, " + name + "!")
+}
+
+fnc main() -> () {
+    // Console is a built-in effect
+    Console.println("direct effect call")
+    Console.print("no newline: ")
+    Console.println("done")
+
+    // Functions that use effects
+    greet("World")
+    greet("Meld")
+}

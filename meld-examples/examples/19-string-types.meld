@@ -1,0 +1,41 @@
+// 19 — String Types
+// Four string literal types: static/template × single/multi-line.
+
+// Static single-line (double quotes) — no interpolation
+val greeting = "Hello, World!"
+val escaped = "line1\nline2\ttab"
+val with-quote = "She said \"hi\""
+
+// Static multi-line (triple double quotes) — no interpolation
+val poem = """
+    Roses are red,
+    Violets are blue,
+    Meld is minimal,
+    And so are you.
+"""
+
+// Template single-line (backtick) — with ${} interpolation
+// val name = "Alice"
+// val msg = `Hello, ${name}!`
+// val math = `2 + 2 = ${2 + 2}`
+
+// Template multi-line (triple backtick) — with ${} interpolation
+// val html = ```
+//     <div>
+//         <h1>${title}</h1>
+//         <p>${body}</p>
+//     </div>
+// ```
+
+// Interpolation modifiers
+// val debug-out = `User: ${:debug user}`
+// val json-out = `Data: ${:json data}`
+// val hex-out = `Value: ${:hex num}`
+
+fnc main() -> () {
+    val greeting = "Hello, World!"
+    val name = "Meld"
+    println(greeting)
+    println(`Welcome to ${name}!`)
+    println("length = " + greeting.length)
+}

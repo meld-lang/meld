@@ -1,0 +1,174 @@
+// std/async/core.meld - pull-based async core
+//
+// This is the pure Meld runtime contract. Pollable values do no work until
+// a scheduler calls poll with a PollContext.
+
+imp kernel
+
+struct Waker {
+    val scheduler-id: int
+    val task-id: int
+    val generation: int
+}
+
+struct PollContext {
+    val waker: Waker
+    var budget: int
+}
+
+struct Poll[T] {
+    val is-ready: bool
+    val value: any
+    val error: any
+}
+
+struct Pollable[T] {
+    val poll-fn: fnc(ctx: PollContext) -> Poll[T]
+}
+
+fnc Ready[T](value: T) -> Poll[T] {
+    rtn Poll { is-ready = true, value = value, error = nil }
+}
+
+fnc Pending[T]() -> Poll[T] {
+    rtn Poll { is-ready = false, value = nil, error = nil }
+}
+
+fnc Failed[T](error: any) -> Poll[T] {
+    rtn Poll { is-ready = true, value = nil, error = error }
+}
+
+fnc poll[T](work: Pollable[T], ctx: PollContext) -> Poll[T] {
+    rtn when(ctx.budget <= 0).then({
+        rtn Pending()
+    }).else({
+        ctx.budget = ctx.budget - 1
+        val poll-fn = work.poll-fn
+        rtn poll-fn(ctx)
+    })
+}
+
+fnc cleanup-pollable(work: any) -> () {
+    val cleanup-fn = work.cleanup-fn
+    when(type-of(cleanup-fn) == "function").then({
+        cleanup-fn()
+    })
+}
+
+fnc no-cleanup() -> () {
+    rtn nil
+}
+
+fnc ready[T](value: T) -> Pollable[T] {
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[T] { rtn Ready(value) },
+        cleanup-fn = fnc() -> () { rtn nil }
+    }
+}
+
+fnc pending[T]() -> Pollable[T] {
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[T] { rtn Pending() },
+        cleanup-fn = fnc() -> () { rtn nil }
+    }
+}
+
+fnc failed[T](error: any) -> Pollable[T] {
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> Poll[T] { rtn Failed(error) },
+        cleanup-fn = fnc() -> () { rtn nil }
+    }
+}
+
+fnc make-context(waker: Waker, budget: int) -> PollContext {
+    rtn PollContext { waker = waker, budget = budget }
+}
+
+fnc budget-exhausted(ctx: PollContext) -> bool {
+    rtn ctx.budget <= 0
+}
+
+fnc is-nil(value: any) -> bool {
+    rtn type-of(value) == "unit"
+}
+
+fnc is-some(value: any) -> bool {
+    rtn type-of(value) != "unit"
+}
+
+fnc wake-task(waker: Waker) -> () {
+    kernel.wake-task(waker.scheduler-id, waker.task-id, waker.generation)
+}
+
+fnc then(work: Pollable, next: any) -> Pollable[any] {
+    var stage = "first"
+    var child = nil
+
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> any {
+            rtn when(stage == "first").then({
+                val first = poll(work, ctx)
+                rtn when(first.is-ready == false).then({
+                    rtn Pending()
+                }).else({
+                    rtn when(is-some(first.error)).then({
+                        rtn Failed(first.error)
+                    }).else({
+                        val next-fn = next
+                        child = next-fn(first.value)
+                        stage = "child"
+                        rtn poll(child, ctx)
+                    })
+                })
+            }).else({
+                rtn poll(child, ctx)
+            })
+        },
+        cleanup-fn = fnc() -> () {
+            cleanup-pollable(work)
+            when(is-some(child)).then({
+                cleanup-pollable(child)
+            })
+        }
+    }
+}
+
+fnc catch(work: Pollable, handler: any) -> Pollable[any] {
+    var recovery = nil
+    var recovering = false
+
+    rtn Pollable {
+        poll-fn = fnc(ctx: PollContext) -> any {
+            rtn when(recovering).then({
+                rtn poll(recovery, ctx)
+            }).else({
+                val result = poll(work, ctx)
+                rtn when(result.is-ready == false).then({
+                    rtn Pending()
+                }).else({
+                    rtn when(is-nil(result.error)).then({
+                        rtn result
+                    }).else({
+                        val handler-fn = handler
+                        recovery = handler-fn(result.error)
+                        recovering = true
+                        rtn poll(recovery, ctx)
+                    })
+                })
+            })
+        },
+        cleanup-fn = fnc() -> () {
+            cleanup-pollable(work)
+            when(is-some(recovery)).then({
+                cleanup-pollable(recovery)
+            })
+        }
+    }
+}
+
+fnc map(work: Pollable, transform: any) -> Pollable[any] {
+    rtn then(work, fnc(value: any) -> any {
+        val transform-fn = transform
+        rtn ready(transform-fn(value))
+    })
+}

@@ -1,0 +1,127 @@
+// std/async/driver.meld - atomic worker ownership boundary
+//
+// The scheduler remains pull-driven. This layer adds one zero-allocation
+// atomic lease per worker so a future OS-thread pool can safely ensure only
+// one runner is driving a worker-local queue at a time.
+
+imp std.async.atomic
+imp std.async.scheduler
+
+struct WorkerLease {
+    val worker-id: int
+    val owner: AtomicInt
+}
+
+struct WorkerDriver {
+    val runtime: Runtime
+    val next-worker: AtomicInt
+    var leases: list
+}
+
+fnc create-worker-driver(runtime: Runtime) -> WorkerDriver {
+    val leases = []
+    var index = 0
+
+    loop-while({ rtn index < len(runtime.workers) }, {
+        arr-push-mut(leases, WorkerLease {
+            worker-id = index,
+            owner = atomic-int(0)
+        })
+        index = index + 1
+    })
+
+    rtn WorkerDriver {
+        runtime = runtime,
+        next-worker = atomic-int(0),
+        leases = leases
+    }
+}
+
+fnc driver-worker-count(driver: WorkerDriver) -> int {
+    rtn len(driver.leases)
+}
+
+fnc valid-worker-token(token: int) -> bool {
+    rtn token != 0
+}
+
+fnc worker-id-in-range(driver: WorkerDriver, worker-id: int) -> bool {
+    rtn worker-id >= 0 && worker-id < driver-worker-count(driver)
+}
+
+fnc worker-lease-owner(driver: WorkerDriver, worker-id: int) -> int {
+    rtn when(worker-id-in-range(driver, worker-id)).then({
+        val lease = driver.leases[worker-id]
+        rtn atomic-load(lease.owner)
+    }).else({
+        rtn -1
+    })
+}
+
+fnc try-acquire-worker(driver: WorkerDriver, worker-id: int, token: int) -> bool {
+    rtn when(valid-worker-token(token) && worker-id-in-range(driver, worker-id)).then({
+        val lease = driver.leases[worker-id]
+        val acquired = atomic-compare-exchange(lease.owner, 0, token)
+        rtn acquired.success
+    }).else({
+        rtn false
+    })
+}
+
+fnc release-worker(driver: WorkerDriver, worker-id: int, token: int) -> bool {
+    rtn when(valid-worker-token(token) && worker-id-in-range(driver, worker-id)).then({
+        val lease = driver.leases[worker-id]
+        val released = atomic-compare-exchange(lease.owner, token, 0)
+        rtn released.success
+    }).else({
+        rtn false
+    })
+}
+
+fnc drive-worker-once(driver: WorkerDriver, worker-id: int, token: int, timeout-ms: int) -> bool {
+    var ran = false
+
+    when(try-acquire-worker(driver, worker-id, token)).then({
+        ran = tick-worker-timeout(driver.runtime, worker-id, timeout-ms)
+        release-worker(driver, worker-id, token)
+    })
+
+    rtn ran
+}
+
+fnc drive-next-worker(driver: WorkerDriver, token: int, timeout-ms: int) -> bool {
+    val count = driver-worker-count(driver)
+
+    rtn when(count <= 0).then({
+        rtn false
+    }).else({
+        val next = atomic-fetch-add(driver.next-worker, 1)
+        rtn drive-worker-once(driver, next % count, token, timeout-ms)
+    })
+}
+
+fnc drive-runtime-steps(driver: WorkerDriver, token: int, steps: int, timeout-ms: int) -> int {
+    var step = 0
+    var active = 0
+
+    loop-while({ rtn step < steps }, {
+        when(drive-next-worker(driver, token, timeout-ms)).then({
+            active = active + 1
+        })
+        step = step + 1
+    })
+
+    rtn active
+}
+
+fnc destroy-worker-driver(driver: WorkerDriver) -> () {
+    var index = 0
+
+    loop-while({ rtn index < len(driver.leases) }, {
+        val lease = driver.leases[index]
+        atomic-destroy(lease.owner)
+        index = index + 1
+    })
+
+    atomic-destroy(driver.next-worker)
+}

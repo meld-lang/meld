@@ -1,0 +1,27 @@
+// 33 — Recursion
+// No loops in Meld — use recursion and when/then/else.
+
+fnc factorial(n: int) -> int {
+    rtn when(n == 0).then({ rtn 1 }).else({ rtn n * factorial(n - 1) })
+}
+
+fnc fibonacci(n: int) -> int {
+    rtn when(n == 0).then({ rtn 0 })
+        .when(n == 1).then({ rtn 1 })
+        .else({ rtn fibonacci(n - 1) + fibonacci(n - 2) })
+}
+
+fnc sum-to(n: int) -> int {
+    rtn when(n == 0).then({ rtn 0 }).else({ rtn n + sum-to(n - 1) })
+}
+
+fnc main() -> () {
+    println("5! = " + factorial(5))
+    println("10! = " + factorial(10))
+
+    println("fib(0) = " + fibonacci(0))
+    println("fib(1) = " + fibonacci(1))
+    println("fib(7) = " + fibonacci(7))
+
+    println("sum 1..10 = " + sum-to(10))
+}

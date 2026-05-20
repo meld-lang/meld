@@ -1,0 +1,118 @@
+// std/collections/frequency_sketch.meld - packed aging Count-Min sketch.
+//
+// This mirrors Caffeine's frequency estimator shape: four 4-bit counters per
+// item, packed into machine-word integers and periodically aged by halving all
+// counters. It is approximate, fixed-size, and suitable for TinyLFU admission.
+
+struct FrequencySketch {
+    var table: list
+    val mask: int
+    val sample-size: int
+    var size: int
+}
+
+fnc frequency-sketch-max(a: int, b: int) -> int {
+    rtn when(a > b).then({ rtn a }).else({ rtn b })
+}
+
+fnc frequency-sketch-min(a: int, b: int) -> int {
+    rtn when(a < b).then({ rtn a }).else({ rtn b })
+}
+
+fnc frequency-sketch-positive(value: int) -> int {
+    rtn when(value < 0).then({ rtn 0 - value }).else({ rtn value })
+}
+
+fnc frequency-sketch-next-power-of-two(target: int) -> int {
+    val desired = frequency-sketch-max(1, target)
+    var power = 1
+    loop-while({ rtn power < desired }, {
+        power = power * 2
+    })
+    rtn power
+}
+
+fnc frequency-sketch-create(max-size: int) -> FrequencySketch {
+    val counters = frequency-sketch-next-power-of-two(frequency-sketch-max(1, max-size))
+    val words = (counters + 15) / 16
+    rtn FrequencySketch {
+        table = iarr-new(words, 0),
+        mask = counters - 1,
+        sample-size = frequency-sketch-max(10, max-size * 10),
+        size = 0
+    }
+}
+
+fnc frequency-sketch-counter-index(sketch: FrequencySketch, hash: int, seed: int) -> int {
+    rtn bit-and(frequency-sketch-positive(bit-xor(hash, seed)), sketch.mask)
+}
+
+fnc frequency-sketch-word-index(counter: int) -> int {
+    rtn counter / 16
+}
+
+fnc frequency-sketch-offset(counter: int) -> int {
+    rtn (counter % 16) * 4
+}
+
+fnc frequency-sketch-counter(sketch: FrequencySketch, hash: int, seed: int) -> int {
+    val counter = frequency-sketch-counter-index(sketch, hash, seed)
+    val word = iarr-get(sketch.table, frequency-sketch-word-index(counter))
+    rtn bit-and(bit-shr(word, frequency-sketch-offset(counter)), 15)
+}
+
+fnc frequency-sketch-frequency(sketch: FrequencySketch, hash: int) -> int {
+    val a = frequency-sketch-counter(sketch, hash, 1656679199)
+    val b = frequency-sketch-counter(sketch, hash, 1181783497)
+    val c = frequency-sketch-counter(sketch, hash, 622489539)
+    val d = frequency-sketch-counter(sketch, hash, 19349663)
+    rtn frequency-sketch-min(frequency-sketch-min(a, b), frequency-sketch-min(c, d))
+}
+
+fnc frequency-sketch-increment-at(sketch: FrequencySketch, hash: int, seed: int) -> bool {
+    val counter = frequency-sketch-counter-index(sketch, hash, seed)
+    val word-index = frequency-sketch-word-index(counter)
+    val offset = frequency-sketch-offset(counter)
+    val word = iarr-get(sketch.table, word-index)
+    val count = bit-and(bit-shr(word, offset), 15)
+    rtn when(count < 15).then({
+        iarr-set-mut(sketch.table, word-index, word + bit-shl(1, offset))
+        rtn true
+    }).else({ rtn false })
+}
+
+fnc frequency-sketch-reset-at(sketch: FrequencySketch, index: int, odd-count: int) -> int {
+    var cursor = index
+    var total-odd = odd-count
+    loop-while({ rtn cursor < len(sketch.table) }, {
+        val word = iarr-get(sketch.table, cursor)
+        val odd = bit-popcount(bit-and(word, 1229782938247303441))
+        iarr-set-mut(sketch.table, cursor, bit-and(bit-shr(word, 1), 8608480567731124087))
+        total-odd = total-odd + odd
+        cursor = cursor + 1
+    })
+    rtn total-odd
+}
+
+fnc frequency-sketch-reset(sketch: FrequencySketch) -> () {
+    val odd-count = frequency-sketch-reset-at(sketch, 0, 0)
+    sketch.size = frequency-sketch-max(0, (sketch.size - (odd-count / 4)) / 2)
+}
+
+fnc frequency-sketch-increment(sketch: FrequencySketch, hash: int) -> () {
+    val a = frequency-sketch-increment-at(sketch, hash, 1656679199)
+    val b = frequency-sketch-increment-at(sketch, hash, 1181783497)
+    val c = frequency-sketch-increment-at(sketch, hash, 622489539)
+    val d = frequency-sketch-increment-at(sketch, hash, 19349663)
+    when(a || b || c || d).then({
+        sketch.size = sketch.size + 1
+        when(sketch.size >= sketch.sample-size).then({
+            frequency-sketch-reset(sketch)
+        })
+    })
+}
+
+fnc frequency-sketch-clear(sketch: FrequencySketch) -> () {
+    sketch.table = iarr-new(len(sketch.table), 0)
+    sketch.size = 0
+}
