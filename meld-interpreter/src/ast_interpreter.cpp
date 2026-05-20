@@ -13,6 +13,7 @@
 #include <fstream>
 #include <regex>
 #include <chrono>
+#include <thread>
 #include <array>
 #include <dlfcn.h>
 #include <cstring>
@@ -1525,6 +1526,60 @@ void AstInterpreter::register_builtins() {
     });
     rand_fn("bool", [](const std::vector<kernel::Value>&) -> kernel::Value {
         return kernel::Value(kernel::Boolean::from(std::rand() % 2 == 0));
+    });
+
+    // Crypto effect
+    auto crypto_fn = [&](const char* op, kernel::Function::NativeImpl impl) {
+        register_effect_handler("Crypto", op, kernel::Value(std::make_shared<kernel::Function>(
+            std::vector<std::shared_ptr<kernel::Symbol>>{}, kernel::Value{}, std::move(impl), std::string("Crypto.") + op)));
+    };
+    crypto_fn("hash", [](const std::vector<kernel::Value>& args) -> kernel::Value {
+        // Simple djb2 hash — production would use SHA-256 via FFI
+        if (args.size() < 2) return kernel::Value(std::make_shared<kernel::String>(""));
+        std::string algo = args[0].is<kernel::String>() ? args[0].as<kernel::String>()->value() : "djb2";
+        std::string input = args[1].is<kernel::String>() ? args[1].as<kernel::String>()->value() : "";
+        uint64_t hash = 5381;
+        for (char c : input) hash = hash * 33 + static_cast<uint8_t>(c);
+        char hex[17]; snprintf(hex, sizeof(hex), "%016llx", (unsigned long long)hash);
+        return kernel::Value(std::make_shared<kernel::String>(std::string(hex)));
+    });
+    crypto_fn("random-bytes", [](const std::vector<kernel::Value>& args) -> kernel::Value {
+        int n = args.empty() ? 16 : (args[0].is<kernel::Integer>() ? (int)args[0].as<kernel::Integer>()->value() : 16);
+        std::string result;
+        for (int i = 0; i < n; ++i) {
+            char hex[3]; snprintf(hex, sizeof(hex), "%02x", std::rand() % 256);
+            result += hex;
+        }
+        return kernel::Value(std::make_shared<kernel::String>(result));
+    });
+    crypto_fn("uuid", [](const std::vector<kernel::Value>&) -> kernel::Value {
+        // v4 UUID (random)
+        char buf[37];
+        snprintf(buf, sizeof(buf), "%08x-%04x-4%03x-%04x-%012llx",
+            std::rand(), std::rand() & 0xffff, std::rand() & 0xfff,
+            (std::rand() & 0x3fff) | 0x8000, (unsigned long long)std::rand() * std::rand());
+        return kernel::Value(std::make_shared<kernel::String>(std::string(buf)));
+    });
+
+    // Timer effect
+    auto timer_fn = [&](const char* op, kernel::Function::NativeImpl impl) {
+        register_effect_handler("Timer", op, kernel::Value(std::make_shared<kernel::Function>(
+            std::vector<std::shared_ptr<kernel::Symbol>>{}, kernel::Value{}, std::move(impl), std::string("Timer.") + op)));
+    };
+    timer_fn("sleep", [](const std::vector<kernel::Value>& args) -> kernel::Value {
+        int ms = args.empty() ? 0 : (args[0].is<kernel::Integer>() ? (int)args[0].as<kernel::Integer>()->value() : 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+        return kernel::Value(kernel::Empty::instance());
+    });
+    timer_fn("measure", [](const std::vector<kernel::Value>& args) -> kernel::Value {
+        // Returns elapsed ms after calling a thunk
+        if (args.empty() || !args[0].is<kernel::Function>()) return kernel::Value(std::make_shared<kernel::Integer>(0));
+        auto start = std::chrono::steady_clock::now();
+        if (args[0].as<kernel::Function>()->impl())
+            (*args[0].as<kernel::Function>()->impl())({});
+        auto end = std::chrono::steady_clock::now();
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        return kernel::Value(std::make_shared<kernel::Integer>(ms));
     });
 
     // ─── kernel.* primitives ────────────────────────────────────────
